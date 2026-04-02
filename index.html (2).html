@@ -1,0 +1,818 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="theme-color" content="#020617"/>
+<title>LinerSync</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{background:linear-gradient(145deg,#080c18 0%,#0c1526 40%,#111d35 100%);color:#e2e8f0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif}
+input,select{width:100%;background:rgba(30,41,59,.6);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1.5px solid rgba(148,163,184,.15);border-radius:14px;padding:14px;color:#f8fafc;font-size:16px;font-weight:600;outline:none;-webkit-appearance:none;font-family:inherit;min-height:52px;transition:border-color .2s}
+input:focus,select:focus{border-color:rgba(96,165,250,.6);box-shadow:0 0 20px rgba(59,130,246,.15)}
+button{border:none;cursor:pointer;-webkit-tap-highlight-color:transparent;font-family:inherit;min-height:48px}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:rgba(148,163,184,.2);border-radius:4px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes glow{0%,100%{box-shadow:0 0 15px rgba(59,130,246,.15)}50%{box-shadow:0 0 25px rgba(59,130,246,.3)}}
+.glass{background:rgba(15,23,42,.55);backdrop-filter:blur(20px) saturate(1.4);-webkit-backdrop-filter:blur(20px) saturate(1.4);border:1px solid rgba(148,163,184,.1);box-shadow:0 8px 32px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.05)}
+</style>
+</head><body><div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script>
+"use strict";
+const h=React.createElement,{useState,useEffect,useMemo,useCallback,useRef}=React,F=React.Fragment;
+
+// ════════════════════════════════════════════════════
+//  STORAGE — KEY IS "ls9" FOREVER. NEVER CHANGE THIS.
+// ════════════════════════════════════════════════════
+const SK="ls9";
+function sLoad(){
+  let d=tp(SK);if(d)return d;
+  for(const k of["ls8","linersync-v7","linersync-v6","linersync-v5"]){d=tp(k);if(d){localStorage.setItem(SK,JSON.stringify(d));return d;}}
+  return null;
+}
+function sSave(d){try{localStorage.setItem(SK,JSON.stringify(d))}catch(e){console.error("SAVE FAILED",e)}}
+function tp(k){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null}catch{return null}}
+
+// ════════════════════════════════════════════════════
+//  BACKUP — TWO WAYS: Google Drive + Local JSON
+// ════════════════════════════════════════════════════
+// Get fresh project data directly from localStorage — never stale
+function getFreshProj(projId){
+  try{
+    const store=JSON.parse(localStorage.getItem(SK));
+    if(!store||!store.projects)return null;
+    return store.projects.find(p=>p.id===projId)||null;
+  }catch{return null}
+}
+function backupToGoogleDrive(projId,projName){
+  const proj=getFreshProj(projId);
+  if(!proj||!proj.data){alert("ERROR: No data found. Try saving a record first, then backup.");return}
+  const counts="Panels:"+proj.data.panels.length+" Seams:"+proj.data.seams.length+" Air:"+proj.data.airTests.length+" DT:"+proj.data.dTests.length+" Repairs:"+proj.data.vacuums.length;
+  const json=JSON.stringify(proj,null,2);
+  const blob=new Blob([json],{type:"application/json"});
+  const fname=(projName||"backup").replace(/\s+/g,"_")+"_"+td()+".json";
+  const file=new File([blob],fname,{type:"application/json"});
+  if(navigator.canShare&&navigator.canShare({files:[file]})){
+    navigator.share({title:"LinerSync Backup",text:counts,files:[file]}).catch(()=>{});
+  } else {
+    dlBlob(blob,fname);
+    alert("Share not available. File downloaded ("+counts+"). Upload it to Google Drive manually.");
+  }
+}
+function backupLocal(projId,projName){
+  const proj=getFreshProj(projId);
+  if(!proj||!proj.data){alert("ERROR: No data found.");return}
+  const blob=new Blob([JSON.stringify(proj,null,2)],{type:"application/json"});
+  dlBlob(blob,(projName||"backup").replace(/\s+/g,"_")+"_"+td()+".json");
+}
+function dlBlob(blob,name){const u=URL.createObjectURL(blob),a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(u)}
+function expCSV(name,hdrs,projId,dataKey){
+  // Read fresh from localStorage
+  const proj=getFreshProj(projId);
+  if(!proj||!proj.data){alert("No data found.");return}
+  const rows=proj.data[dataKey]||[];
+  if(rows.length===0){alert("No "+name+" records to export (0 entries).");return}
+  const csv=[hdrs.join(","),...rows.map(r=>hdrs.map(k=>{const v=r[k];if(v===null||v===undefined)return'""';if(typeof v==="object")return'"'+JSON.stringify(v).replace(/"/g,'""')+'"';return'"'+String(v).replace(/"/g,'""')+'"'}).join(","))].join("\n");
+  dlBlob(new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),name+"_"+td()+".csv");
+}
+
+// ════════════════════════════════════════════════════
+//  UTILITIES
+// ════════════════════════════════════════════════════
+let _c=0;const uid=()=>`${Date.now()}-${++_c}`;
+const td=()=>new Date().toISOString().split("T")[0];
+const nw=()=>{const d=new Date();return p2(d.getHours())+":"+p2(d.getMinutes())};
+const p2=n=>String(n).padStart(2,"0");
+const fd=d=>{if(!d)return"—";const p=d.split("-");return(p[1]||"")+"/"+(p[2]||"")};
+const fn=n=>n?n.toLocaleString():"0";
+const csv=s=>(s||"").split(",").map(x=>Number(x.trim())).filter(x=>!isNaN(x));
+const match=(item,q)=>{if(!q)return true;const l=q.toLowerCase();return Object.values(item).some(v=>String(v).toLowerCase().includes(l))};
+const EMPTY={panels:[],seams:[],airTests:[],trialWelds:[],dTests:[],vacuums:[],perimeter:[],captures:[],dronePhotos:[]};
+
+// ════════════════════════════════════════════════════
+//  EXIF GPS PARSER — reads GPS from drone JPEG photos
+// ════════════════════════════════════════════════════
+function readExifGPS(file){
+  return new Promise((resolve)=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      try{
+        const buf=new Uint8Array(e.target.result);
+        if(buf[0]!==0xFF||buf[1]!==0xD8){resolve(null);return}// not JPEG
+        let off=2;
+        while(off<buf.length-1){
+          if(buf[off]!==0xFF){off++;continue}
+          const marker=buf[off+1];
+          if(marker===0xE1){// APP1 = EXIF
+            const len=(buf[off+2]<<8)|buf[off+3];
+            const exif=buf.slice(off+4,off+2+len);
+            const gps=parseExifGPS(exif);
+            resolve(gps);return;
+          }
+          const segLen=(buf[off+2]<<8)|buf[off+3];
+          off+=2+segLen;
+        }
+        resolve(null);
+      }catch{resolve(null)}
+    };
+    reader.readAsArrayBuffer(file.slice(0,128*1024));// first 128KB is enough for EXIF
+  });
+}
+function parseExifGPS(d){
+  try{
+    // Find "Exif\0\0"
+    let i=0;while(i<d.length-5&&!(d[i]===0x45&&d[i+1]===0x78&&d[i+2]===0x69&&d[i+3]===0x66))i++;
+    if(i>=d.length-5)return null;
+    const tiffOff=i+6;const le=d[tiffOff]===0x49;// little endian?
+    const r16=(o)=>le?(d[tiffOff+o]|d[tiffOff+o+1]<<8):(d[tiffOff+o]<<8|d[tiffOff+o+1]);
+    const r32=(o)=>le?(d[tiffOff+o]|d[tiffOff+o+1]<<8|d[tiffOff+o+2]<<16|d[tiffOff+o+3]<<24):(d[tiffOff+o]<<24|d[tiffOff+o+1]<<16|d[tiffOff+o+2]<<8|d[tiffOff+o+3]);
+    // Find GPS IFD pointer in IFD0
+    let ifdOff=r32(4);const cnt=r16(ifdOff);let gpsOff=0;
+    for(let j=0;j<cnt;j++){const tag=r16(ifdOff+2+j*12);if(tag===0x8825){gpsOff=r32(ifdOff+2+j*12+8);break}}
+    if(!gpsOff)return null;
+    // Parse GPS IFD
+    const gc=r16(gpsOff);let latRef="N",lngRef="E",latV=null,lngV=null;
+    const rRat=(o)=>{const n=r32(o),dd=r32(o+4);return dd?n/dd:0};
+    const rDMS=(o)=>[rRat(o),rRat(o+8),rRat(o+16)];
+    const dms2d=(a)=>a[0]+a[1]/60+a[2]/3600;
+    for(let j=0;j<gc;j++){
+      const to=gpsOff+2+j*12;const tag=r16(to);const vo=r32(to+8);
+      if(tag===1)latRef=String.fromCharCode(d[tiffOff+vo]||d[tiffOff+to+8]);
+      if(tag===2)latV=dms2d(rDMS(vo));
+      if(tag===3)lngRef=String.fromCharCode(d[tiffOff+vo]||d[tiffOff+to+8]);
+      if(tag===4)lngV=dms2d(rDMS(vo));
+    }
+    if(latV===null||lngV===null)return null;
+    return{lat:latRef==="S"?-latV:latV,lng:lngRef==="W"?-lngV:lngV};
+  }catch{return null}
+}
+
+// ════════════════════════════════════════════════════
+//  BARCODE SCANNER — uses BarcodeDetector API (Chrome Android)
+// ════════════════════════════════════════════════════
+function ScanBtn({onScan,label}){
+  const scan=async()=>{
+    if(!("BarcodeDetector" in window)){alert("Barcode scanner not available in this browser. Use Chrome on Android.");return}
+    const inp=document.createElement("input");inp.type="file";inp.accept="image/*";
+    try{inp.setAttribute("capture","environment")}catch{}
+    inp.onchange=async ev=>{
+      const file=ev.target.files?.[0];if(!file)return;
+      const bmp=await createImageBitmap(file);
+      try{
+        const det=new BarcodeDetector({formats:["code_128","code_39","ean_13","ean_8","qr_code","data_matrix"]});
+        const results=await det.detect(bmp);
+        if(results.length>0){onScan(results[0].rawValue)}
+        else{alert("No barcode detected. Try again with better lighting.")}
+      }catch(e){alert("Scan failed: "+e.message)}
+    };inp.click();
+  };
+  return h("button",{onClick:scan,type:"button",style:{background:"rgba(139,92,246,.7)",color:"#fff",borderRadius:12,padding:"12px",fontSize:12,fontWeight:800,minHeight:48,marginBottom:10,display:"flex",alignItems:"center",justifyContent:"center",gap:6,border:"1px solid rgba(167,139,250,.3)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)"}},
+    h("svg",{width:18,height:18,viewBox:"0 0 24 24",fill:"none",stroke:"#fff",strokeWidth:2},h("rect",{x:3,y:3,width:18,height:18,rx:2}),h("line",{x1:7,y1:8,x2:7,y2:16}),h("line",{x1:10,y1:8,x2:10,y2:16}),h("line",{x1:13,y1:8,x2:13,y2:16}),h("line",{x1:16,y1:8,x2:16,y2:16})),
+    label||"SCAN BARCODE");
+}
+
+// ════════════════════════════════════════════════════
+//  WEATHER — auto-fetch, NEVER blocks saving
+// ════════════════════════════════════════════════════
+async function fetchWeather(){
+  try{
+    const pos=await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(p=>res(p.coords),rej,{timeout:5000}));
+    const r=await fetch("https://api.open-meteo.com/v1/forecast?latitude="+pos.latitude+"&longitude="+pos.longitude+"&current=temperature_2m,wind_speed_10m,relative_humidity_2m,weather_code&temperature_unit=fahrenheit&wind_speed_unit=mph");
+    const j=await r.json();const c=j.current;
+    const codes={0:"Clear",1:"Mostly Clear",2:"Partly Cloudy",3:"Overcast",45:"Fog",51:"Drizzle",61:"Light Rain",63:"Rain",65:"Heavy Rain",71:"Snow",80:"Showers",95:"T-Storm"};
+    return Math.round(c.temperature_2m)+"°F "+Math.round(c.wind_speed_10m)+"mph "+Math.round(c.relative_humidity_2m)+"%RH "+(codes[c.weather_code]||"");
+  }catch{return""}
+}
+
+// ════════════════════════════════════════════════════
+//  DT TRACKING — auto-calc footage, countdown to next DT
+// ════════════════════════════════════════════════════
+function calcDT(seams,dTests,interval){
+  const totalFt=seams.reduce((a,s)=>a+(Number(s.len)||0),0);
+  const dtCount=dTests.length;
+  const required=totalFt>0?Math.ceil(totalFt/interval):0;
+  const lastDtIdx=dTests.length>0?dTests.length:0;
+  // Footage since last DT
+  let ftSinceLast=0;const sorted=[...seams].sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+  // Simple: total footage minus (dtCount * interval)
+  ftSinceLast=totalFt-(dtCount*interval);
+  const due=ftSinceLast>=0;
+  const remaining=due?0:Math.abs(ftSinceLast);
+  const overdue=ftSinceLast>0?ftSinceLast:0;
+  return{totalFt,dtCount,required,ftSinceLast,due,remaining,overdue};
+}
+
+// ════════════════════════════════════════════════════
+//  DAILY CQA REPORT — printable HTML, open in new tab
+// ════════════════════════════════════════════════════
+function genDailyReport(proj,d,date){
+  const pnl=d.panels.filter(p=>p.date===date);const sm=d.seams.filter(s=>s.date===date);
+  const air=d.airTests.filter(a=>a.date===date);const dt=d.dTests.filter(t=>t.date===date);
+  const vc=d.vacuums.filter(v=>v.dateRep===date);
+  const totalFt=sm.reduce((a,s)=>a+(Number(s.len)||0),0);
+  const area=pnl.reduce((a,p)=>a+(p.area||0),0);
+  const wx=sm.find(s=>s.weather)?.weather||"Not recorded";
+  const tbl=(hdrs,rows)=>"<table><tr>"+hdrs.map(h=>"<th>"+h+"</th>").join("")+"</tr>"+rows.map(r=>"<tr>"+hdrs.map(h=>"<td>"+(r[h]??"")+"</td>").join("")+"</tr>").join("")+"</table>";
+  const html="<!DOCTYPE html><html><head><meta charset='utf-8'><title>CQA Daily - "+date+"</title><style>body{font-family:Arial,sans-serif;max-width:800px;margin:0 auto;padding:20px;color:#1a1a1a;font-size:11px}h1{font-size:16px;border-bottom:2px solid #1a1a1a;padding-bottom:6px}h2{font-size:13px;color:#2563eb;margin:14px 0 6px;border-bottom:1px solid #ddd;padding-bottom:3px}table{width:100%;border-collapse:collapse;margin-bottom:10px}th{background:#2563eb;color:#fff;padding:4px 6px;text-align:left;font-size:10px}td{padding:3px 6px;border-bottom:1px solid #e5e7eb;font-size:10px}.s{display:inline-block;background:#f1f5f9;padding:4px 10px;border-radius:4px;margin:2px;font-weight:700;font-size:11px}@media print{body{padding:10px}}</style></head><body>"
+    +"<h1>"+proj.name+" — CQA DAILY REPORT</h1>"
+    +"<p><b>Date:</b> "+date+" | <b>Area:</b> "+proj.area+" | <b>Material:</b> "+proj.material+" | <b>Contractor:</b> "+proj.contractor+"</p>"
+    +"<p><b>Weather:</b> "+wx+"</p>"
+    +"<p><span class='s'>"+pnl.length+" Panels</span><span class='s'>"+area.toLocaleString()+" ft²</span><span class='s'>"+sm.length+" Welds</span><span class='s'>"+totalFt+"' welded</span><span class='s'>"+air.length+" Air Tests</span><span class='s'>"+dt.length+" DTs</span><span class='s'>"+vc.length+" Repairs</span></p>"
+    +(pnl.length?"<h2>PANELS DEPLOYED ("+pnl.length+")</h2>"+tbl(["num","roll","w","l","area","zone"],pnl):"")
+    +(sm.length?"<h2>WEDGE WELDS ("+sm.length+")</h2>"+tbl(["num","seamer","machine","temp","speed","len","time"],sm):"")
+    +(air.length?"<h2>AIR TESTS ("+air.length+")</h2>"+tbl(["seam","sPsi","ePsi","pass","tester","sTime","eTime"],air):"")
+    +(dt.length?"<h2>DESTRUCTIVE TESTS ("+dt.length+")</h2>"+tbl(["dtNum","seam","loc","welder"],dt):"")
+    +(vc.length?"<h2>REPAIRS ("+vc.length+")</h2>"+tbl(["repNum","loc","type","by"],vc):"")
+    +"<br><p style='color:#999;font-size:9px'>Generated by LinerSync — "+new Date().toLocaleString()+"</p></body></html>";
+  const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();setTimeout(()=>w.print(),500)}else{alert("Pop-up blocked. Allow pop-ups for this site.")}
+}
+
+// ════════════════════════════════════════════════════
+//  GPS — robust, retries, clear error messages
+// ════════════════════════════════════════════════════
+function useGPS(){
+  const[g,setG]=useState({lat:null,lng:null,acc:null,status:"init",err:""});
+  const wr=useRef(null);const rt=useRef(0);
+  const start=useCallback(()=>{
+    if(!navigator.geolocation){setG({lat:null,lng:null,acc:null,status:"unavail",err:"Geolocation not available"});return}
+    setG(p=>({...p,status:"searching",err:""}));
+    if(wr.current!==null)navigator.geolocation.clearWatch(wr.current);
+    wr.current=navigator.geolocation.watchPosition(
+      p=>{rt.current=0;setG({lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy,status:"locked",err:""})},
+      e=>{
+        const m={1:"DENIED — tap lock icon in address bar → Permissions → Location → Allow → reload",2:"Position unavailable — move to open sky",3:"Timeout — acquiring..."};
+        setG(p=>({...p,status:e.code===1?"denied":"error",err:m[e.code]||e.message}));
+        if(e.code===3&&rt.current<3){rt.current++;setTimeout(start,2000)}
+      },{enableHighAccuracy:true,timeout:15000,maximumAge:3000});
+  },[]);
+  useEffect(()=>{start();return()=>{if(wr.current!==null)navigator.geolocation.clearWatch(wr.current)}},[start]);
+  const bars=g.acc===null?0:g.acc<3?4:g.acc<8?3:g.acc<15?2:g.acc<30?1:0;
+  const color=bars>=3?"#4ade80":bars>=2?"#facc15":bars>=1?"#f97316":"#ef4444";
+  const label=g.status==="locked"?(bars>=3?"LOCKED":"WEAK"):g.status==="searching"?"ACQUIRING":g.status==="denied"?"DENIED":"NO FIX";
+  const stamp=()=>g.lat?{lat:Math.round(g.lat*1e6)/1e6,lng:Math.round(g.lng*1e6)/1e6,acc:Math.round(g.acc*10)/10}:null;
+  return{...g,bars,color,label,stamp,retry:start};
+}
+
+// ════════════════════════════════════════════════════
+//  CONSTANTS
+// ════════════════════════════════════════════════════
+const MATS=["60-mil HDPE Smooth","60-mil HDPE Textured","80-mil HDPE Smooth","80-mil HDPE Textured","40-mil LLDPE","60-mil LLDPE"];
+const DSPEC={minPsi:30,maxDrop:4,holdMin:5,minPeel:80,minShear:140,dtInterval:500};
+const ZN={B:"Bottom",E:"Edge",N:"North",S:"South",W:"West",A:"Anchor"};
+const ZC={B:"#3b82f6",E:"#f59e0b",N:"#10b981",S:"#8b5cf6",W:"#06b6d4",A:"#ef4444"};
+const RT={B:"Boot/Cap",P:"Extrusion Patch",DP:"Detail/Overlap"};
+
+// ════════════════════════════════════════════════════
+//  UI COMPONENTS — glove-sized
+// ════════════════════════════════════════════════════
+const B={
+  btn:{background:"rgba(37,99,235,.85)",color:"#fff",borderRadius:14,padding:"14px 20px",fontSize:14,fontWeight:800,textAlign:"center",minHeight:52,backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",border:"1px solid rgba(96,165,250,.2)",boxShadow:"0 4px 16px rgba(37,99,235,.2)"},
+  chip:{background:"rgba(30,41,59,.5)",color:"#94a3b8",borderRadius:12,padding:"10px 14px",fontSize:12,fontWeight:700,minHeight:44,backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",border:"1px solid rgba(148,163,184,.08)"},
+  card:{background:"rgba(15,23,42,.55)",backdropFilter:"blur(20px) saturate(1.4)",WebkitBackdropFilter:"blur(20px) saturate(1.4)",border:"1px solid rgba(148,163,184,.1)",borderRadius:16,padding:14,boxShadow:"0 8px 32px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.05)"},
+  sec:{fontSize:10,fontWeight:800,color:"#64748b",letterSpacing:1.5,margin:"14px 0 8px"},
+  lbl:{fontSize:11,fontWeight:700,color:"#94a3b8",margin:"0 0 4px",letterSpacing:.5}
+};
+
+function GPSBar({gps}){return h("div",{style:{display:"flex",alignItems:"center",gap:3,background:"rgba(30,41,59,.5)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",borderRadius:8,padding:"4px 8px",flexShrink:0,border:"1px solid rgba(148,163,184,.08)"}},h("div",{style:{display:"flex",alignItems:"flex-end",gap:1,height:12}},[0,1,2,3].map(i=>h("div",{key:i,style:{width:3,height:3+i*2.5,borderRadius:1,background:i<gps.bars?gps.color:"rgba(51,65,85,.5)"}}))),h("span",{style:{fontSize:9,fontWeight:800,color:gps.color}},gps.label),gps.acc!==null&&h("span",{style:{fontSize:8,color:"#64748b"}},"±"+Math.round(gps.acc)+"m"))}
+
+function Fld({label,value,onChange,type,placeholder}){return h("div",{style:{marginBottom:12}},h("p",{style:B.lbl},label),h("input",{type:type||"text",value:value??"",onChange:e=>onChange(e.target.value),placeholder:placeholder||""}))}
+function Sel({label,value,onChange,opts}){return h("div",{style:{marginBottom:12}},h("p",{style:B.lbl},label),h("select",{value,onChange:e=>onChange(e.target.value)},opts.map(([v,l])=>h("option",{key:v,value:v},l))))}
+function G2(p){return h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}},p.children)}
+function Stat({l,v,c}){return h("div",{style:{background:"rgba(30,41,59,.4)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",borderRadius:12,padding:"8px 12px",marginBottom:4,border:"1px solid rgba(148,163,184,.06)"}},h("p",{style:{fontSize:9,fontWeight:700,color:"#64748b",margin:0}},l),h("p",{style:{fontSize:13,fontWeight:800,color:c||"#f8fafc",margin:"2px 0 0"}},v))}
+function GPSTag({c}){return!c?h("div",{style:{background:"#422006",borderRadius:8,padding:"8px 12px",marginTop:6}},h("p",{style:{fontSize:10,color:"#fbbf24",fontWeight:700,margin:0}},"⚠ No GPS")):h("div",{style:{background:"#052e16",borderRadius:8,padding:"8px 12px",marginTop:6}},h("p",{style:{fontSize:10,color:"#4ade80",fontFamily:"monospace",margin:0}},"📍 "+c.lat+", "+c.lng+" ±"+c.acc+"m"))}
+function Search({q,setQ}){return h("div",{style:{marginBottom:10}},h("input",{type:"search",value:q,onChange:e=>setQ(e.target.value),placeholder:"🔍 Search...",style:{background:"#1e293b",border:"2px solid #334155",borderRadius:10,padding:"12px 14px",color:"#f8fafc",fontSize:14,fontWeight:600,width:"100%",minHeight:48}}))}
+
+function CamBtn({onPhoto,label}){
+  const snap=()=>{const inp=document.createElement("input");inp.type="file";inp.accept="image/*";try{inp.setAttribute("capture","environment")}catch{}
+    inp.onchange=ev=>{const f=ev.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=re=>{const img=new Image();img.onload=()=>{const c=document.createElement("canvas");const sc=Math.min(400/img.width,400/img.height,1);c.width=img.width*sc;c.height=img.height*sc;c.getContext("2d").drawImage(img,0,0,c.width,c.height);onPhoto(c.toDataURL("image/jpeg",.7))};img.src=re.target.result};r.readAsDataURL(f)};inp.click()};
+  return h("button",{onClick:snap,type:"button",style:{background:"#dc2626",color:"#fff",borderRadius:10,padding:"14px",fontSize:13,fontWeight:800,width:"100%",minHeight:52,marginBottom:10,display:"flex",alignItems:"center",justifyContent:"center",gap:8}},
+    h("svg",{width:20,height:20,viewBox:"0 0 24 24",fill:"none",stroke:"#fff",strokeWidth:2.5,strokeLinecap:"round",strokeLinejoin:"round"},h("path",{d:"M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"}),h("circle",{cx:12,cy:13,r:4})),label||"📷 TAP TO CAPTURE PHOTO")}
+function PhotoPrev({photo,onClear}){return!photo?null:h("div",{style:{position:"relative",marginBottom:10}},h("img",{src:photo,style:{width:"100%",height:140,objectFit:"cover",borderRadius:10,border:"2px solid #334155"}}),h("button",{onClick:onClear,style:{position:"absolute",top:6,right:6,background:"rgba(0,0,0,.7)",borderRadius:14,width:28,height:28,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:14,minHeight:28}},"✕"))}
+
+function Sheet({children,onClose,title}){return h(F,null,h("div",{onClick:onClose,style:{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",zIndex:40}}),h("div",{style:{position:"fixed",bottom:0,left:0,right:0,maxHeight:"92vh",background:"rgba(10,15,30,.85)",backdropFilter:"blur(40px) saturate(1.5)",WebkitBackdropFilter:"blur(40px) saturate(1.5)",borderTop:"1px solid rgba(148,163,184,.12)",borderRadius:"28px 28px 0 0",padding:"12px 20px 40px",overflowY:"auto",zIndex:50,boxShadow:"0 -8px 40px rgba(0,0,0,.5)"}},h("div",{style:{width:40,height:4,background:"rgba(148,163,184,.2)",borderRadius:2,margin:"0 auto 14px"}}),h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}},h("p",{style:{fontSize:17,fontWeight:900,color:"#f8fafc",margin:0}},title),h("button",{onClick:onClose,style:{background:"rgba(30,41,59,.6)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",borderRadius:14,width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",color:"#94a3b8",fontSize:18,minHeight:36,border:"1px solid rgba(148,163,184,.1)"}},"✕")),children))}
+function Confirm({msg,onYes,onNo}){return h(F,null,h("div",{onClick:onNo,style:{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",zIndex:80}}),h("div",{style:{position:"fixed",top:"30%",left:20,right:20,background:"rgba(30,41,59,.8)",backdropFilter:"blur(24px) saturate(1.5)",WebkitBackdropFilter:"blur(24px) saturate(1.5)",borderRadius:20,padding:24,zIndex:81,textAlign:"center",border:"1px solid rgba(148,163,184,.12)",boxShadow:"0 16px 48px rgba(0,0,0,.5)"}},h("p",{style:{fontSize:14,color:"#f8fafc",fontWeight:700,margin:"0 0 16px"}},msg),h("div",{style:{display:"flex",gap:10}},h("button",{onClick:onNo,style:{...B.btn,background:"rgba(51,65,85,.7)",flex:1}},"CANCEL"),h("button",{onClick:onYes,style:{...B.btn,background:"rgba(220,38,38,.8)",flex:1}},"DELETE"))))}
+
+// Draggable cam button — S-Pen style
+function DragCam({onClick}){
+  const[pos,setPos]=useState(()=>{try{const s=JSON.parse(localStorage.getItem("ls-cam"));if(s)return s}catch{}return{x:typeof window!=="undefined"?window.innerWidth-80:320,y:typeof window!=="undefined"?window.innerHeight-160:600}});
+  const dr=useRef(false),sp=useRef({x:0,y:0}),so=useRef({x:0,y:0}),mv=useRef(false);
+  const ts=e=>{const t=e.touches[0];dr.current=true;mv.current=false;sp.current={x:t.clientX,y:t.clientY};so.current={...pos}};
+  const tm=e=>{if(!dr.current)return;const t=e.touches[0],dx=t.clientX-sp.current.x,dy=t.clientY-sp.current.y;if(Math.abs(dx)>5||Math.abs(dy)>5)mv.current=true;setPos({x:Math.max(0,Math.min(window.innerWidth-64,so.current.x+dx)),y:Math.max(0,Math.min(window.innerHeight-64,so.current.y+dy))})};
+  const te=()=>{dr.current=false;const sx=pos.x+32<window.innerWidth/2?8:window.innerWidth-72,np={x:sx,y:pos.y};setPos(np);try{localStorage.setItem("ls-cam",JSON.stringify(np))}catch{};if(!mv.current)onClick()};
+  return h("div",{onTouchStart:ts,onTouchMove:tm,onTouchEnd:te,onClick:e=>{if(!("ontouchstart"in window))onClick()},style:{position:"fixed",left:pos.x,top:pos.y,width:64,height:64,borderRadius:32,background:"rgba(220,38,38,.85)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",border:"2px solid rgba(252,165,165,.4)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 4px 24px rgba(220,38,38,.4),0 0 40px rgba(220,38,38,.15)",zIndex:31,touchAction:"none",cursor:"grab",transition:dr.current?"none":"left .2s,top .05s"}},h("svg",{width:28,height:28,viewBox:"0 0 24 24",fill:"none",stroke:"#fff",strokeWidth:2.5,strokeLinecap:"round",strokeLinejoin:"round"},h("path",{d:"M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"}),h("circle",{cx:12,cy:13,r:4})))}
+
+// ════════════════════════════════════════════════════
+//  APP
+// ════════════════════════════════════════════════════
+function App(){
+  const[store,setStore]=useState(null);const[loading,setL]=useState(true);const[toast,setToast]=useState(null);
+  const flash=m=>{setToast(m);setTimeout(()=>setToast(null),2500)};
+  useEffect(()=>{setStore(sLoad()||{projects:[],active:null});setL(false)},[]);
+  const persist=useCallback(n=>{setStore(n);sSave(n)},[]);
+  if(loading)return h("div",{style:{height:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"#0f172a"}},h("div",{style:{width:28,height:28,border:"3px solid #1e293b",borderTopColor:"#3b82f6",borderRadius:"50%",animation:"spin .8s linear infinite"}}),h("p",{style:{color:"#64748b",marginTop:16,fontSize:11,fontWeight:800,letterSpacing:2}},"LINERSYNC"));
+  if(!store.active)return h(Home,{store,persist,flash,toast});
+  const proj=store.projects.find(p=>p.id===store.active);
+  if(!proj){persist({...store,active:null});return null}
+  return h(ProjView,{proj,store,persist,flash,toast});
+}
+
+// ════════════════════════════════════════════════════
+//  HOME — project list, create, import
+// ════════════════════════════════════════════════════
+function Home({store,persist,flash,toast}){
+  const[cr,setCr]=useState(false);const ir=useRef(null);
+  const imp=ev=>{const f=ev.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=re=>{try{const p=JSON.parse(re.target.result);if(!p.name||!p.data)return flash("Bad file");p.id=uid();persist({projects:[...store.projects,p],active:p.id});flash(p.name+" imported")}catch{flash("Import failed")}};r.readAsText(f);ev.target.value=""};
+  return h("div",{style:{display:"flex",flexDirection:"column",height:"100vh",background:"#0f172a"}},
+    h("div",{style:{padding:24,flex:1,overflowY:"auto"}},
+      h("div",{style:{textAlign:"center",padding:"44px 0 32px"}},h("p",{style:{fontSize:34,fontWeight:900,color:"#f8fafc",letterSpacing:-1.5,margin:0,textShadow:"0 0 40px rgba(96,165,250,.3)"}},"\u25C7 LINERSYNC"),h("p",{style:{fontSize:11,color:"#64748b",fontWeight:700,letterSpacing:2,margin:"6px 0 0"}},"GEOMEMBRANE CQA FIELD LOG")),
+      store.projects.length>0&&h(F,null,h("p",{style:B.sec},"YOUR PROJECTS"),store.projects.map(p=>h("button",{key:p.id,onClick:()=>persist({...store,active:p.id}),style:{...B.card,marginBottom:8,padding:"16px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",width:"100%",textAlign:"left",cursor:"pointer"}},h("div",null,h("p",{style:{fontSize:16,fontWeight:900,color:"#f8fafc",margin:0}},p.name),h("p",{style:{fontSize:11,color:"#64748b",margin:"3px 0 0"}},p.area+" · "+p.material)),h("div",{style:{textAlign:"right"}},h("p",{style:{fontSize:16,fontWeight:900,color:"#60a5fa",margin:0}},p.data?.panels?.length||0),h("p",{style:{fontSize:8,color:"#64748b",margin:0,fontWeight:700}},"PANELS"))))),
+      h("button",{onClick:()=>setCr(true),style:{...B.btn,width:"100%",padding:18,marginTop:16,fontSize:16,borderRadius:12}},"+  NEW PROJECT"),
+      h("button",{onClick:()=>ir.current?.click(),style:{...B.btn,width:"100%",padding:16,marginTop:8,fontSize:13,borderRadius:12,background:"#334155"}},"IMPORT BACKUP"),
+      h("input",{ref:ir,type:"file",accept:".json",style:{display:"none"},onChange:imp})),
+    cr&&h(Sheet,{title:"New Project",onClose:()=>setCr(false)},h(ProjForm,{onSubmit:f=>{const np={...f,id:uid(),data:{...EMPTY}};persist({projects:[...store.projects,np],active:np.id});flash(np.name+" created")},onCancel:()=>setCr(false)})),
+    toast&&h("div",{style:{position:"fixed",top:52,left:"50%",transform:"translateX(-50%)",background:"rgba(30,41,59,.75)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:"1px solid rgba(74,222,128,.2)",borderRadius:14,padding:"8px 20px",fontSize:12,fontWeight:700,color:"#4ade80",zIndex:60,boxShadow:"0 8px 32px rgba(0,0,0,.5),0 0 20px rgba(74,222,128,.1)"}},toast));
+}
+function ProjForm({onSubmit,onCancel}){
+  const[f,sf]=useState({name:"",area:"",material:MATS[0],contractor:"",specs:{...DSPEC}});const set=(k,v)=>sf(p=>({...p,[k]:v}));const ss=(k,v)=>sf(p=>({...p,specs:{...p.specs,[k]:Number(v)}}));
+  return h("div",null,h(Fld,{label:"PROJECT NAME",value:f.name,onChange:v=>set("name",v),placeholder:"e.g. Alamo WWTP"}),h(Fld,{label:"AREA",value:f.area,onChange:v=>set("area",v),placeholder:"e.g. Pond 1"}),h(Sel,{label:"MATERIAL",value:f.material,onChange:v=>set("material",v),opts:MATS.map(m=>[m,m])}),h(Fld,{label:"CONTRACTOR",value:f.contractor,onChange:v=>set("contractor",v)}),h("p",{style:{...B.sec,marginTop:14}},"TEST SPECS"),h(G2,null,h(Fld,{label:"MIN PSI",value:f.specs.minPsi,onChange:v=>ss("minPsi",v),type:"number"}),h(Fld,{label:"MAX DROP",value:f.specs.maxDrop,onChange:v=>ss("maxDrop",v),type:"number"})),h(G2,null,h(Fld,{label:"MIN PEEL",value:f.specs.minPeel,onChange:v=>ss("minPeel",v),type:"number"}),h(Fld,{label:"MIN SHEAR",value:f.specs.minShear,onChange:v=>ss("minShear",v),type:"number"})),h(Fld,{label:"DT INTERVAL (ft of weld)",value:f.specs.dtInterval||500,onChange:v=>ss("dtInterval",v),type:"number",placeholder:"500"}),h("div",{style:{display:"flex",gap:10,marginTop:16}},h("button",{onClick:onCancel,style:{...B.btn,background:"#334155",flex:1}},"CANCEL"),h("button",{onClick:()=>f.name?onSubmit(f):null,style:{...B.btn,flex:1,opacity:f.name?1:.4}},"CREATE")));
+}
+
+// ════════════════════════════════════════════════════
+//  PROJECT VIEW — main workspace
+// ════════════════════════════════════════════════════
+function ProjView({proj,store,persist,flash,toast}){
+  const[tab,setTab]=useState("map");const d=proj.data||{...EMPTY};const specs=proj.specs||DSPEC;const gps=useGPS();
+  const up=useCallback(nd=>{persist({...store,projects:store.projects.map(p=>p.id===proj.id?{...p,data:nd}:p)})},[store,proj.id,persist]);
+  const goHome=()=>{if(confirm("Switch project?"))persist({...store,active:null})};
+  // Floating cam
+  const triggerCam=()=>{const inp=document.createElement("input");inp.type="file";inp.accept="image/*";try{inp.setAttribute("capture","environment")}catch{}inp.onchange=ev=>{const f=ev.target.files?.[0];if(!f)return;const g=gps.stamp();const r=new FileReader();r.onload=re=>{const img=new Image();img.onload=()=>{const c=document.createElement("canvas");const sc=Math.min(400/img.width,400/img.height,1);c.width=img.width*sc;c.height=img.height*sc;c.getContext("2d").drawImage(img,0,0,c.width,c.height);up({...d,captures:[...(d.captures||[]),{id:uid(),photo:c.toDataURL("image/jpeg",.7),gps:g,date:td(),time:nw()}]});flash("📷 Captured"+(g?" · GPS ✓":""))};img.src=re.target.result};r.readAsDataURL(f)};inp.click()};
+
+  const stats=useMemo(()=>{
+    const totalArea=d.panels.reduce((a,x)=>a+(x.area||0),0);const tested=new Set(d.airTests.map(a=>a.seam));const punch=[];
+    d.seams.forEach(s=>{if(!tested.has(s.num))punch.push({s:"H",t:"No Air: "+s.num})});
+    d.vacuums.filter(v=>!v.dateAccept).forEach(v=>punch.push({s:"H",t:"Repair #"+v.repNum}));
+    d.airTests.filter(a=>!a.pass).forEach(a=>punch.push({s:"C",t:"FAIL: "+a.seam}));
+    punch.sort((a,b)=>({C:0,H:1}[a.s]||2)-({C:0,H:1}[b.s]||2));
+    const today=td();const tPnl=d.panels.filter(p=>p.date===today).length;const tSm=d.seams.filter(s=>s.date===today).length;const tAir=d.airTests.filter(a=>a.date===today).length;
+    return{totalArea,pc:d.panels.length,sc:d.seams.length,ac:d.airTests.length,dc:d.dTests.length,vc:d.vacuums.length,tc:d.trialWelds.length,punch,tested:tested.size,tPnl,tSm,tAir};
+  },[d]);
+
+  return h("div",{style:{display:"flex",flexDirection:"column",height:"100vh",background:"#0f172a",overflow:"hidden",position:"relative"}},
+    // Header
+    h("div",{style:{background:"rgba(2,6,23,.75)",backdropFilter:"blur(20px) saturate(1.5)",WebkitBackdropFilter:"blur(20px) saturate(1.5)",borderBottom:"1px solid rgba(148,163,184,.08)",flexShrink:0,zIndex:20,paddingTop:"env(safe-area-inset-top,0px)"}},h("div",{style:{display:"flex",alignItems:"center",gap:5,padding:"8px 10px"}},
+      h("button",{onClick:goHome,style:{background:"#1e293b",borderRadius:6,padding:"4px 8px",color:"#475569",fontSize:9,fontWeight:800,flexShrink:0,minHeight:28}},"⚙"),
+      h("p",{style:{fontSize:14,fontWeight:900,color:"#f8fafc",margin:0,flexShrink:0,maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},proj.name),
+      h(GPSBar,{gps}),
+      h("div",{style:{display:"flex",gap:4,marginLeft:"auto"}},[[stats.pc,"P"],[stats.sc,"W"],[stats.ac,"A"],[stats.dc,"D"]].map(([v,l],i)=>h("span",{key:i,style:{fontSize:8,fontWeight:700,color:"#94a3b8"}},v,h("span",{style:{color:"#475569"}},l)))))),
+    // Content
+    h("div",{style:{flex:1,overflowY:"auto",paddingBottom:88,WebkitOverflowScrolling:"touch"}},
+      tab==="map"&&h(MapTab,{d,stats,proj,gps,up,flash}),
+      tab==="today"&&h(TodayTab,{d,stats,proj}),
+      tab==="panels"&&h(PanelsTab,{d,up,flash,gps}),
+      tab==="tests"&&h(TestsTab,{d,up,flash,specs,gps}),
+      tab==="qa"&&h(QATab,{d,up,flash,stats,specs,store,persist,proj,gps})),
+    // Draggable cam
+    h(DragCam,{onClick:triggerCam}),
+    // Nav
+    h("nav",{style:{position:"fixed",bottom:0,left:0,right:0,background:"rgba(2,6,23,.8)",backdropFilter:"blur(24px) saturate(1.5)",WebkitBackdropFilter:"blur(24px) saturate(1.5)",borderTop:"1px solid rgba(148,163,184,.08)",display:"flex",justifyContent:"space-around",paddingBottom:"env(safe-area-inset-bottom,8px)",paddingTop:6,zIndex:30}},
+      [["map","◎","Map"],["today","☀","Today"],["panels","▭","Panels"],["tests","◈","Tests"],["qa","✓","QA"]].map(([id,ico,lbl])=>h("button",{key:id,onClick:()=>setTab(id),style:{display:"flex",flexDirection:"column",alignItems:"center",background:"none",padding:"6px 0",minWidth:56,minHeight:52,color:tab===id?"#60a5fa":"#475569"}},h("span",{style:{fontSize:22,lineHeight:1}},ico),h("span",{style:{fontSize:9,fontWeight:800,letterSpacing:.5,marginTop:2}},lbl)))),
+    toast&&h("div",{style:{position:"fixed",top:52,left:"50%",transform:"translateX(-50%)",background:"rgba(30,41,59,.75)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:"1px solid rgba(74,222,128,.2)",borderRadius:14,padding:"8px 20px",fontSize:12,fontWeight:700,color:"#4ade80",zIndex:60,boxShadow:"0 8px 32px rgba(0,0,0,.5),0 0 20px rgba(74,222,128,.1)"}},toast));
+}
+
+// ════════════════════════════════════════════════════
+//  MAP TAB
+// ════════════════════════════════════════════════════
+function MapTab({d,stats,proj,gps,up,flash}){
+  const[pm,setPm]=useState(false);const[sel,setSel]=useState(null);const[selType,setSelType]=useState("");const peri=d.perimeter||[];
+  const tap=(item,type)=>{setSel(item);setSelType(type)};
+  const addPt=()=>{const pt=gps.stamp();if(!pt)return flash("No GPS lock");up({...d,perimeter:[...peri,pt]});flash("Point "+(peri.length+1))};
+  // Saved data points — these define the map bounds (stable, don't jump)
+  const savedPts=[...peri,...d.panels.filter(p=>p.gps).map(p=>p.gps),...d.seams.filter(s=>s.gps).map(s=>s.gps),...d.airTests.filter(a=>a.gps).map(a=>a.gps),...d.dTests.filter(t=>t.gps).map(t=>t.gps),...d.vacuums.filter(v=>v.gps).map(v=>v.gps),...(d.dronePhotos||[]).filter(dp=>dp.gps).map(dp=>dp.gps)];
+  // If no saved points but have GPS, center on user with fixed radius
+  const hasSaved=savedPts.length>0;
+  const boundPts=hasSaved?savedPts:gps.lat?[{lat:gps.lat,lng:gps.lng}]:[];
+  const hasAny=boundPts.length>0||gps.lat;
+
+  const W=380,H=320,P=30;let mn={lat:Infinity,lng:Infinity},mx={lat:-Infinity,lng:-Infinity};
+  boundPts.forEach(p=>{mn.lat=Math.min(mn.lat,p.lat);mn.lng=Math.min(mn.lng,p.lng);mx.lat=Math.max(mx.lat,p.lat);mx.lng=Math.max(mx.lng,p.lng)});
+  // Minimum spread ~200m so map doesn't zoom too tight and dot doesn't bounce
+  const minSpread=0.002;
+  const dLat=Math.max(mx.lat-mn.lat,minSpread),dLng=Math.max(mx.lng-mn.lng,minSpread);
+  // Center the bounds if spread was forced wider
+  if(mx.lat-mn.lat<minSpread){const ctr=(mn.lat+mx.lat)/2;mn.lat=ctr-minSpread/2;mx.lat=ctr+minSpread/2}
+  if(mx.lng-mn.lng<minSpread){const ctr=(mn.lng+mx.lng)/2;mn.lng=ctr-minSpread/2;mx.lng=ctr+minSpread/2}
+  const toS=p=>({x:P+((p.lng-mn.lng)/dLng)*(W-P*2),y:P+((mx.lat-p.lat)/dLat)*(H-P*2)});
+  const periS=peri.map(toS);const periP=periS.length>1?periS.map((p,i)=>(i?"L":"M")+p.x+","+p.y).join("")+(peri.length>2?" Z":""):"";
+  const live=gps.lat?toS({lat:gps.lat,lng:gps.lng}):null;
+  const ok=gps.status==="locked";
+
+  return h("div",{style:{padding:12}},
+    // GPS — compact bar
+    h("div",{style:{background:ok?"#052e16":"#422006",borderRadius:10,padding:"8px 12px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}},
+      h("div",{style:{display:"flex",alignItems:"center",gap:6}},h(GPSBar,{gps}),gps.lat&&h("span",{style:{fontSize:9,fontWeight:700,color:"#e2e8f0",fontFamily:"monospace"}},gps.lat.toFixed(5)+","+gps.lng.toFixed(5))),
+      !ok&&gps.status!=="searching"&&h("button",{onClick:gps.retry,style:{...B.btn,padding:"4px 12px",fontSize:9,background:"#a16207",minHeight:32}},"RETRY")),
+    gps.err&&h("p",{style:{fontSize:9,color:"#fbbf24",margin:"0 0 8px",lineHeight:1.3}},gps.err),
+
+    // MAP CARD — everything anchored inside
+    h("div",{style:{...B.card,padding:0,marginBottom:8,overflow:"hidden"}},
+      // Stats bar INSIDE the card — fixed to top
+      h("div",{style:{background:"rgba(2,6,23,.7)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",padding:"8px 12px",display:"flex",gap:8,flexWrap:"nowrap",overflowX:"auto",borderBottom:"1px solid rgba(148,163,184,.08)"}},
+        [[fn(stats.totalArea),"ft²","#f8fafc"],[String(stats.pc),"PNL","#3b82f6"],[String(stats.sc),"WLD","#f59e0b"],[String(stats.ac),"AIR","#10b981"],[String(stats.dc),"DT","#ef4444"],[String(stats.vc),"REP","#8b5cf6"],[String(stats.punch?.length||0),"PUN",stats.punch?.length?"#f59e0b":"#4ade80"]].map(([v,l,c],i)=>h("div",{key:i,style:{flexShrink:0,textAlign:"center"}},h("p",{style:{fontSize:12,fontWeight:900,color:c,margin:0}},v),h("p",{style:{fontSize:7,color:"#475569",margin:0,fontWeight:700}},l)))),
+
+      // SVG map — fixed height
+      !hasAny?h("div",{style:{height:240,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"#0a0f1a"}},h("p",{style:{fontSize:14,fontWeight:800,color:"#1e293b"}},"AS-BUILT MAP"),h("p",{style:{fontSize:10,color:"#141c2e",marginTop:6}},"Add GPS-tagged records"))
+      :h("svg",{viewBox:"0 0 "+W+" "+H,style:{width:"100%",height:240,display:"block",background:"#0a0f1a"}},
+        [0,1,2,3,4].map(i=>h("line",{key:"h"+i,x1:P,y1:P+i*(H-P*2)/4,x2:W-P,y2:P+i*(H-P*2)/4,stroke:"#1e293b",strokeWidth:.5})),
+        [0,1,2,3,4].map(i=>h("line",{key:"v"+i,x1:P+i*(W-P*2)/4,y1:P,x2:P+i*(W-P*2)/4,y2:H-P,stroke:"#1e293b",strokeWidth:.5})),
+        periP&&h("path",{d:periP,fill:"rgba(59,130,246,.06)",stroke:"#3b82f6",strokeWidth:2,strokeLinejoin:"round"}),
+        periS.map((p,i)=>h("circle",{key:"pp"+i,cx:p.x,cy:p.y,r:3.5,fill:"#3b82f6",stroke:"#0f172a",strokeWidth:1})),
+        d.panels.filter(p=>p.gps).map((p,i)=>{const pt=toS(p.gps);return h("g",{key:"pn"+i,onClick:()=>tap(p,"panel"),style:{cursor:"pointer"}},h("rect",{x:pt.x-9,y:pt.y-9,width:18,height:18,rx:3,fill:ZC[p.zone]||"#3b82f6",stroke:sel?.id===p.id?"#fff":"#f8fafc",strokeWidth:sel?.id===p.id?2.5:1,opacity:.85}),h("text",{x:pt.x,y:pt.y+1,textAnchor:"middle",dominantBaseline:"middle",fill:"#fff",fontSize:5,fontWeight:900},p.num))}),
+        d.seams.filter(s=>s.gps).map((s,i)=>{const pt=toS(s.gps);return h("circle",{key:"sm"+i,cx:pt.x,cy:pt.y,r:sel?.id===s.id?6:4,fill:"#f59e0b",stroke:sel?.id===s.id?"#fff":"#0f172a",strokeWidth:sel?.id===s.id?2:1,onClick:()=>tap(s,"seam"),style:{cursor:"pointer"}})}),
+        d.airTests.filter(a=>a.gps).map((a,i)=>{const pt=toS(a.gps);return h("circle",{key:"at"+i,cx:pt.x,cy:pt.y,r:sel?.id===a.id?5.5:3.5,fill:a.pass?"#10b981":"#ef4444",stroke:sel?.id===a.id?"#fff":"#0f172a",strokeWidth:sel?.id===a.id?2:1,onClick:()=>tap(a,"air"),style:{cursor:"pointer"}})}),
+        d.dTests.filter(t=>t.gps).map((t,i)=>{const pt=toS(t.gps);return h("g",{key:"dt"+i,onClick:()=>tap(t,"dt"),style:{cursor:"pointer"}},h("polygon",{points:pt.x+","+(pt.y-7)+" "+(pt.x+6)+","+(pt.y+4)+" "+(pt.x-6)+","+(pt.y+4),fill:"#ef4444",stroke:sel?.id===t.id?"#fff":"#0f172a",strokeWidth:sel?.id===t.id?2:1}),h("text",{x:pt.x,y:pt.y,textAnchor:"middle",dominantBaseline:"middle",fill:"#fff",fontSize:5,fontWeight:900},t.dtNum))}),
+        d.vacuums.filter(v=>v.gps).map((v,i)=>{const pt=toS(v.gps);return h("rect",{key:"vr"+i,x:pt.x-4,y:pt.y-4,width:8,height:8,fill:"#8b5cf6",stroke:sel?.id===v.id?"#fff":"#0f172a",strokeWidth:sel?.id===v.id?2:1,transform:"rotate(45 "+pt.x+" "+pt.y+")",onClick:()=>tap(v,"repair"),style:{cursor:"pointer"}})}),
+        // Drone photo markers — tappable cyan hexagons
+        (d.dronePhotos||[]).filter(dp=>dp.gps).map((dp,i)=>{const pt=toS(dp.gps);const r=6;const hex=Array.from({length:6},(v,j)=>{const a=Math.PI/3*j-Math.PI/6;return(pt.x+r*Math.cos(a))+","+(pt.y+r*Math.sin(a))}).join(" ");return h("polygon",{key:"dr"+i,points:hex,fill:"#06b6d4",stroke:sel?.id===dp.id?"#fff":"#0f172a",strokeWidth:sel?.id===dp.id?2:1,opacity:.9,onClick:()=>tap(dp,"drone"),style:{cursor:"pointer"}})}),
+        live&&h("g",null,h("circle",{cx:live.x,cy:live.y,r:12,fill:"rgba(96,165,250,.12)"}),h("circle",{cx:live.x,cy:live.y,r:5,fill:"#60a5fa",stroke:"#fff",strokeWidth:2}))),
+
+      // Legend INSIDE card bottom
+      h("div",{style:{background:"rgba(2,6,23,.7)",padding:"6px 8px",display:"flex",gap:6,justifyContent:"center",borderTop:"1px solid rgba(148,163,184,.08)",flexWrap:"wrap"}},
+        [["#60a5fa","You","●"],["#3b82f6","Panel","■"],["#f59e0b","Weld","●"],["#10b981","Air✓","●"],["#ef4444","DT","▲"],["#8b5cf6","Repair","◆"],["#06b6d4","Drone","⬡"]].map(([c,l,s],i)=>h("span",{key:i,style:{fontSize:7,color:"#64748b",fontWeight:700}},h("span",{style:{color:c}},s)," "+l)))),
+
+    // Perimeter controls
+    h("div",{style:{display:"flex",gap:6,marginBottom:8}},pm?h(F,null,h("button",{onClick:addPt,style:{...B.btn,flex:1,background:"#16a34a",fontSize:13,padding:14}},"📍 DROP POINT ("+peri.length+")"),h("button",{onClick:()=>setPm(false),style:{...B.btn,background:"#334155",padding:"14px 18px"}},"DONE")):h(F,null,h("button",{onClick:()=>setPm(true),style:{...B.btn,flex:1,background:"rgba(30,41,59,.6)",color:"#94a3b8",border:"1px solid rgba(148,163,184,.12)"}},"WALK PERIMETER ("+peri.length+" pts)"),peri.length>0&&h("button",{onClick:()=>{if(confirm("Clear perimeter?"))up({...d,perimeter:[]})},style:{...B.btn,background:"rgba(127,29,29,.7)",padding:"8px 14px"}},"CLR"))),
+
+    // DRONE PHOTO IMPORT
+    h("button",{onClick:()=>{
+      const inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.multiple=true;
+      inp.onchange=async ev=>{
+        const files=Array.from(ev.target.files||[]);if(!files.length)return;
+        let added=0;const newDrone=[...(d.dronePhotos||[])];
+        for(const file of files){
+          const gps=await readExifGPS(file);
+          // Thumbnail
+          const thumb=await new Promise(res=>{const r=new FileReader();r.onload=re=>{const img=new Image();img.onload=()=>{const c=document.createElement("canvas");const sc=Math.min(200/img.width,200/img.height,1);c.width=img.width*sc;c.height=img.height*sc;c.getContext("2d").drawImage(img,0,0,c.width,c.height);res(c.toDataURL("image/jpeg",.6))};img.src=re.target.result};r.readAsDataURL(file)});
+          newDrone.push({id:uid(),gps,photo:thumb,name:file.name,date:td(),time:nw()});
+          if(gps)added++;
+        }
+        up({...d,dronePhotos:newDrone});
+        flash("🛸 "+files.length+" photos imported, "+added+" GPS-tagged");
+      };inp.click();
+    },style:{...B.btn,width:"100%",background:"rgba(6,182,212,.15)",color:"#06b6d4",border:"1px solid rgba(6,182,212,.3)",padding:14,fontSize:12,marginBottom:8}},"🛸  IMPORT DRONE PHOTOS ("+(d.dronePhotos||[]).length+")"),
+    stats.punch?.length>0&&h(F,null,h("p",{style:B.sec},"PUNCH ("+stats.punch.length+")"),stats.punch.slice(0,4).map((p,i)=>h("div",{key:i,style:{...B.card,marginBottom:4,padding:"8px 12px",borderLeft:"3px solid "+(p.s==="C"?"#ef4444":"#f59e0b")}},h("p",{style:{fontSize:10,fontWeight:800,color:"#e2e8f0",margin:0}},p.t)))),
+
+    // PIN DETAIL SHEET — tap any marker to see everything
+    sel&&h(Sheet,{title:selType==="panel"?"Panel "+sel.num:selType==="seam"?"Seam "+sel.num:selType==="air"?"Air Test: "+sel.seam:selType==="dt"?"DT-"+sel.dtNum:selType==="repair"?"Repair #"+sel.repNum:selType==="drone"?"Drone Photo":"Detail",onClose:()=>setSel(null)},
+      // Photo if exists
+      sel.photo&&h("img",{src:sel.photo,style:{width:"100%",height:160,objectFit:"cover",borderRadius:12,marginBottom:10}}),
+
+      // PANEL detail
+      selType==="panel"&&h(F,null,
+        h(G2,null,h(Stat,{l:"DATE",v:sel.date}),h(Stat,{l:"ZONE",v:ZN[sel.zone]||sel.zone,c:ZC[sel.zone]})),
+        h(G2,null,h(Stat,{l:"ROLL #",v:sel.roll}),h(Stat,{l:"SIZE",v:sel.w+"' × "+sel.l+"'"})),
+        h(Stat,{l:"AREA",v:fn(sel.area)+" ft²"}),
+        sel.weather&&h(Stat,{l:"WEATHER",v:sel.weather,c:"#06b6d4"}),
+        h(GPSTag,{c:sel.gps}),
+        h("p",{style:{...B.sec,marginTop:10}},"CONNECTED SEAMS"),
+        d.seams.filter(s=>s.num.toUpperCase().includes(sel.num.toUpperCase())).length===0?h("p",{style:{fontSize:10,color:"#475569"}},"None recorded")
+        :d.seams.filter(s=>s.num.toUpperCase().includes(sel.num.toUpperCase())).map(s=>{
+          const tested=d.airTests.find(a=>a.seam===s.num);
+          return h("div",{key:s.id,style:{background:"rgba(30,41,59,.4)",borderRadius:10,padding:"8px 12px",marginBottom:4,border:"1px solid rgba(148,163,184,.08)"}},
+            h("div",{style:{display:"flex",justifyContent:"space-between"}},h("span",{style:{fontSize:12,fontWeight:800,color:"#f8fafc"}},s.num),h("span",{style:{fontSize:9,fontWeight:800,color:tested?tested.pass?"#4ade80":"#ef4444":"#f59e0b"}},tested?tested.pass?"AIR PASS":"AIR FAIL":"NO AIR")),
+            h("p",{style:{fontSize:9,color:"#64748b",margin:"2px 0 0"}},s.seamer+"/M"+s.machine+" "+s.temp+"°F@"+s.speed+(s.len?" · "+s.len+"'":"")+" · "+fd(s.date)))
+        }),
+        // DTs on this panel's seams
+        (()=>{const pDTs=d.dTests.filter(dt=>d.seams.filter(s=>s.num.toUpperCase().includes(sel.num.toUpperCase())).some(s=>dt.seam===s.num));return pDTs.length>0?h(F,null,h("p",{style:{...B.sec,marginTop:8}},"DESTRUCTIVE TESTS"),pDTs.map(dt=>h("div",{key:dt.id,style:{background:"rgba(30,41,59,.4)",borderRadius:10,padding:"8px 12px",marginBottom:4}},h("p",{style:{fontSize:12,fontWeight:800,color:"#f8fafc",margin:0}},"DT-"+dt.dtNum+" · "+dt.seam),h("p",{style:{fontSize:9,color:"#64748b",margin:"2px 0 0"}},dt.loc+" · "+dt.welder)))):null})()
+      ),
+
+      // SEAM detail
+      selType==="seam"&&h(F,null,
+        h(G2,null,h(Stat,{l:"DATE",v:sel.date}),h(Stat,{l:"TIME",v:sel.time})),
+        h(G2,null,h(Stat,{l:"SEAMER",v:sel.seamer}),h(Stat,{l:"MACHINE",v:"#"+sel.machine})),
+        h(G2,null,h(Stat,{l:"TEMP",v:sel.temp+"°F"}),h(Stat,{l:"SPEED",v:sel.speed})),
+        sel.len&&h(Stat,{l:"LENGTH",v:sel.len+"'"}),
+        sel.weather&&h(Stat,{l:"WEATHER",v:sel.weather,c:"#06b6d4"}),
+        h(GPSTag,{c:sel.gps}),
+        h("p",{style:{...B.sec,marginTop:8}},"AIR TESTS ON THIS SEAM"),
+        d.airTests.filter(a=>a.seam===sel.num).length===0?h("p",{style:{fontSize:10,color:"#f59e0b",fontWeight:700}},"⚠ No air test recorded")
+        :d.airTests.filter(a=>a.seam===sel.num).map(a=>h("div",{key:a.id,style:{background:a.pass?"rgba(4,46,22,.5)":"rgba(69,26,26,.5)",borderRadius:10,padding:"8px 12px",marginBottom:4}},
+          h("p",{style:{fontSize:13,fontWeight:900,color:a.pass?"#4ade80":"#ef4444",margin:0}},a.pass?"PASS":"FAIL"," · Δ"+(a.sPsi-a.ePsi)+" PSI"),
+          h("p",{style:{fontSize:9,color:"#94a3b8",margin:"2px 0 0"}},a.sPsi+"→"+a.ePsi+" · "+a.sTime+"–"+a.eTime+" · "+a.tester+" · "+fd(a.date))))
+      ),
+
+      // AIR TEST detail
+      selType==="air"&&h(F,null,
+        h(Stat,{l:"SEAM",v:sel.seam}),
+        h(G2,null,h(Stat,{l:"START",v:sel.sPsi+" PSI @ "+sel.sTime}),h(Stat,{l:"END",v:sel.ePsi+" PSI @ "+sel.eTime})),
+        h(Stat,{l:"RESULT",v:(sel.pass?"PASS":"FAIL")+" (Δ"+(sel.sPsi-sel.ePsi)+")",c:sel.pass?"#4ade80":"#ef4444"}),
+        h(G2,null,h(Stat,{l:"TESTER",v:sel.tester}),h(Stat,{l:"DATE",v:sel.date})),
+        sel.weather&&h(Stat,{l:"WEATHER",v:sel.weather,c:"#06b6d4"}),
+        h(GPSTag,{c:sel.gps})
+      ),
+
+      // DT detail
+      selType==="dt"&&h(F,null,
+        h(G2,null,h(Stat,{l:"DT #",v:sel.dtNum}),h(Stat,{l:"SEAM",v:sel.seam})),
+        h(Stat,{l:"LOCATION",v:sel.loc}),
+        h(G2,null,h(Stat,{l:"WELDER",v:sel.welder}),h(Stat,{l:"MACHINE",v:sel.machine})),
+        h("p",{style:{fontSize:10,color:"#94a3b8",margin:"6px 0"}},"iP: "+((sel.iP||[]).join(", "))+" | oP: "+((sel.oP||[]).join(", "))+" | Sh: "+((sel.sh||[]).join(", "))),
+        h(GPSTag,{c:sel.gps})
+      ),
+
+      // REPAIR detail
+      selType==="repair"&&h(F,null,
+        h(Stat,{l:"LOCATION",v:sel.loc}),
+        h(G2,null,h(Stat,{l:"BY",v:sel.by}),h(Stat,{l:"TYPE",v:RT[sel.type]||sel.type})),
+        h(G2,null,h(Stat,{l:"DATE REPAIRED",v:sel.dateRep}),h(Stat,{l:"ACCEPTED",v:sel.dateAccept||"PENDING",c:sel.dateAccept?"#4ade80":"#f59e0b"})),
+        sel.tester&&h(Stat,{l:"TESTER",v:sel.tester}),
+        sel.dt&&h(Stat,{l:"DT REFERENCE",v:sel.dt}),
+        h(GPSTag,{c:sel.gps})
+      ),
+
+      // DRONE PHOTO detail
+      selType==="drone"&&h(F,null,
+        h(G2,null,h(Stat,{l:"FILE",v:sel.name||"Drone photo"}),h(Stat,{l:"DATE",v:sel.date})),
+        h(Stat,{l:"TIME",v:sel.time}),
+        h(GPSTag,{c:sel.gps})
+      )
+    ));
+}
+
+// ════════════════════════════════════════════════════
+//  TODAY TAB
+// ════════════════════════════════════════════════════
+function TodayTab({d,stats,proj}){
+  const today=td();const pnl=d.panels.filter(p=>p.date===today);const sm=d.seams.filter(s=>s.date===today);const air=d.airTests.filter(a=>a.date===today);const tw=d.trialWelds.filter(t=>t.date===today);const dt=d.dTests.filter(t=>t.date===today);const vc=d.vacuums.filter(v=>v.dateRep===today);
+  const total=pnl.length+sm.length+air.length+tw.length+dt.length+vc.length;
+  return h("div",{style:{padding:16}},
+    h("p",{style:{fontSize:16,fontWeight:900,color:"#f8fafc",margin:"0 0 12px"}},"TODAY — "+today),
+    h("div",{style:{...B.card,marginBottom:12}},h("p",{style:{fontSize:28,fontWeight:900,color:total>0?"#4ade80":"#475569",margin:0,textAlign:"center"}},total+" ENTRIES"),h("div",{style:{display:"flex",justifyContent:"center",gap:12,marginTop:8}},[[pnl.length,"PNL","#3b82f6"],[sm.length,"WLD","#f59e0b"],[air.length,"AIR","#10b981"],[tw.length,"TW","#06b6d4"],[dt.length,"DT","#ef4444"],[vc.length,"REP","#8b5cf6"]].map(([v,l,c],i)=>h("span",{key:i,style:{fontSize:10,fontWeight:800,color:v>0?c:"#334155"}},v+" "+l)))),
+    pnl.length>0&&h(F,null,h("p",{style:B.sec},"PANELS ("+pnl.length+")"),pnl.map(p=>h("div",{key:p.id,style:{...B.card,marginBottom:4,padding:"8px 12px"}},h("p",{style:{fontSize:13,fontWeight:900,color:"#f8fafc",margin:0}},p.num," ",p.gps&&"📍"),h("p",{style:{fontSize:9,color:"#64748b",margin:"2px 0 0"}},"Roll "+p.roll+" · "+p.w+"'×"+p.l+"' · "+fn(p.area)+"ft²")))),
+    sm.length>0&&h(F,null,h("p",{style:B.sec},"WELDS ("+sm.length+")"),sm.map(s=>h("div",{key:s.id,style:{...B.card,marginBottom:4,padding:"8px 12px"}},h("p",{style:{fontSize:13,fontWeight:900,color:"#f8fafc",margin:0}},s.num," ",s.gps&&"📍"),h("p",{style:{fontSize:9,color:"#64748b",margin:"2px 0 0"}},s.seamer+"/M"+s.machine+" "+s.time)))),
+    air.length>0&&h(F,null,h("p",{style:B.sec},"AIR TESTS ("+air.length+")"),air.map(a=>h("div",{key:a.id,style:{...B.card,marginBottom:4,padding:"8px 12px"}},h("div",{style:{display:"flex",justifyContent:"space-between"}},h("p",{style:{fontSize:13,fontWeight:900,color:"#f8fafc",margin:0}},a.seam),h("span",{style:{fontSize:9,fontWeight:800,color:a.pass?"#4ade80":"#ef4444"}},a.pass?"PASS":"FAIL")),h("p",{style:{fontSize:9,color:"#64748b",margin:"2px 0 0"}},a.sPsi+"→"+a.ePsi+" PSI · "+a.tester)))),
+    total===0&&h("div",{style:{textAlign:"center",padding:40}},h("p",{style:{fontSize:13,color:"#334155"}},"No entries today yet")),
+    total>0&&h("button",{onClick:()=>genDailyReport(proj,d,today),style:{...B.btn,width:"100%",background:"rgba(37,99,235,.85)",marginTop:16,padding:16,fontSize:14}},"📄  GENERATE DAILY CQA REPORT"));
+}
+
+// ════════════════════════════════════════════════════
+//  PANELS — edit, delete, search, batch, duplicate, photo
+// ════════════════════════════════════════════════════
+function PanelsTab({d,up,flash,gps}){
+  const[q,setQ]=useState("");const[adding,setAdding]=useState(false);const[batch,setBatch]=useState(false);const[det,setDet]=useState(null);const[editing,setEditing]=useState(null);const[delId,setDelId]=useState(null);
+  const list=d.panels.filter(p=>match(p,q));
+  const add=f=>{
+    if(d.panels.some(p=>p.num===f.num)){if(!confirm(f.num+" already exists. Add duplicate?"))return}
+    const zone=f.num?.[0]||"B",area=(f.w||23)*(f.l||0);
+    up({...d,panels:[...d.panels,{...f,id:uid(),zone,area,gps:gps.stamp(),date:f.date||td()}]});flash(f.num+" added");if(!batch)setAdding(false);
+  };
+  const edit=(id,f)=>{const zone=f.num?.[0]||"B",area=(f.w||23)*(f.l||0);up({...d,panels:d.panels.map(p=>p.id===id?{...p,...f,zone,area}:p)});flash("Updated");setEditing(null);setDet(null)};
+  const del=id=>{up({...d,panels:d.panels.filter(p=>p.id!==id)});flash("Deleted");setDet(null);setDelId(null)};
+
+  return h("div",{style:{padding:"0 16px 16px"}},
+    h("div",{style:{position:"sticky",top:0,zIndex:10,background:"#0f172a",paddingTop:16,paddingBottom:4}},
+      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}},h("p",{style:{fontSize:16,fontWeight:900,color:"#f8fafc",margin:0}},"PANELS ("+d.panels.length+")"),h("div",{style:{display:"flex",gap:6}},
+        h("button",{onClick:()=>{setBatch(!batch);setAdding(true)},style:{...B.btn,padding:"10px 14px",fontSize:11,background:batch?"#16a34a":"#334155"}},batch?"BATCH ON":"BATCH"),
+        h("button",{onClick:()=>setAdding(true),style:{...B.btn,padding:"10px 14px",fontSize:12}},"+ADD"))),
+      h(Search,{q,setQ})),
+    list.map(p=>h("button",{key:p.id,onClick:()=>setDet(p),style:{...B.card,marginBottom:5,padding:"12px 14px",display:"flex",alignItems:"center",gap:10,width:"100%",textAlign:"left",cursor:"pointer"}},
+      h("div",{style:{width:34,height:34,borderRadius:8,background:ZC[p.zone]||"#475569",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden"}},p.photo?h("img",{src:p.photo,style:{width:"100%",height:"100%",objectFit:"cover"}}):h("span",{style:{fontSize:10,fontWeight:900,color:"#fff"}},p.zone)),
+      h("div",{style:{flex:1,minWidth:0}},h("div",{style:{display:"flex",justifyContent:"space-between"}},h("p",{style:{fontSize:14,fontWeight:900,color:"#f8fafc",margin:0}},p.num),h("div",{style:{display:"flex",alignItems:"center",gap:3}},p.gps&&h("span",{style:{fontSize:8,color:"#4ade80"}},"📍"),p.photo&&h("span",{style:{fontSize:8}},"📷"),h("p",{style:{fontSize:10,color:"#94a3b8",margin:0}},fn(p.area)+"ft²"))),h("p",{style:{fontSize:9,color:"#64748b",margin:"2px 0 0"}},"Roll "+p.roll+" · "+p.w+"'×"+p.l+"' · "+fd(p.date))))),
+    det&&!editing&&h(Sheet,{title:"Panel "+det.num,onClose:()=>setDet(null)},
+      det.photo&&h("img",{src:det.photo,style:{width:"100%",height:140,objectFit:"cover",borderRadius:10,marginBottom:8}}),
+      h(G2,null,h(Stat,{l:"DATE",v:det.date}),h(Stat,{l:"ZONE",v:ZN[det.zone]||det.zone,c:ZC[det.zone]})),h(G2,null,h(Stat,{l:"ROLL",v:det.roll}),h(Stat,{l:"SIZE",v:det.w+"'×"+det.l+"'"})),h(Stat,{l:"AREA",v:fn(det.area)+" ft²"}),h(GPSTag,{c:det.gps}),
+      h("p",{style:{...B.sec,marginTop:10}},"SEAMS"),d.seams.filter(s=>s.num.toUpperCase().includes(det.num.toUpperCase())).map(s=>h("div",{key:s.id,style:{background:"#1e293b",borderRadius:8,padding:"8px 12px",marginBottom:3,display:"flex",justifyContent:"space-between"}},h("span",{style:{fontSize:12,fontWeight:700,color:"#e2e8f0"}},s.num),h("span",{style:{fontSize:10,color:"#94a3b8"}},s.seamer+" · "+fd(s.date)))),
+      h("div",{style:{display:"flex",gap:10,marginTop:14}},h("button",{onClick:()=>setEditing(det),style:{...B.btn,flex:1,background:"#334155"}},"EDIT"),h("button",{onClick:()=>setDelId(det.id),style:{...B.btn,flex:1,background:"#7f1d1d"}},"DELETE"))),
+    editing&&h(Sheet,{title:"Edit "+editing.num,onClose:()=>setEditing(null)},h(PnlForm,{init:editing,onSubmit:f=>edit(editing.id,f),onCancel:()=>setEditing(null),gps,editMode:true})),
+    adding&&h(Sheet,{title:batch?"Batch Panels":"Add Panel",onClose:()=>{setAdding(false);setBatch(false)}},h(PnlForm,{onSubmit:add,onCancel:()=>{setAdding(false);setBatch(false)},gps,batch})),
+    delId&&h(Confirm,{msg:"Delete this panel?",onYes:()=>del(delId),onNo:()=>setDelId(null)}));
+}
+function PnlForm({onSubmit,onCancel,gps,init,editMode,batch}){
+  const[f,sf]=useState(init||{date:td(),num:"",roll:"",w:23,l:"",com:"",photo:""});const set=(k,v)=>sf(p=>({...p,[k]:v}));
+  const area=(f.w||23)*(Number(f.l)||0);const nr=useRef(null);
+  const go=()=>{if(!f.num||!f.l)return;onSubmit(f);if(batch){sf(p=>({...p,num:"",l:"",photo:""}));setTimeout(()=>nr.current?.focus(),100)}};
+  return h("div",null,
+    h(CamBtn,{onPhoto:p=>set("photo",p),label:"📷 PHOTO OF PANEL"}),h(PhotoPrev,{photo:f.photo,onClear:()=>set("photo","")}),
+    h(G2,null,h(Fld,{label:"DATE",value:f.date,onChange:v=>set("date",v),type:"date"}),h("div",{style:{marginBottom:12}},h("p",{style:B.lbl},"PANEL #"),h("input",{ref:nr,type:"text",value:f.num,onChange:e=>set("num",e.target.value.toUpperCase()),placeholder:"B12A"}))),
+    h("div",{style:{display:"flex",gap:8,marginBottom:12,alignItems:"flex-end"}},h("div",{style:{flex:1}},h(Fld,{label:"ROLL #",value:f.roll,onChange:v=>set("roll",v),placeholder:"1632"})),h(ScanBtn,{onScan:v=>set("roll",v),label:"SCAN"})),
+    h(G2,null,h(Sel,{label:"WIDTH (ft)",value:String(f.w),onChange:v=>set("w",Number(v)),opts:[["23","23'"],["15","15'"]]}),h(Fld,{label:"LENGTH (ft)",value:f.l,onChange:v=>set("l",Number(v)),type:"number"})),
+    area>0&&h("div",{style:{background:"#1e293b",borderRadius:10,padding:8,marginBottom:10,textAlign:"center"}},h("p",{style:{fontSize:14,fontWeight:800,color:"#60a5fa",margin:0}},fn(area)+" ft²")),
+    !editMode&&h("div",{style:{background:"#1e293b",borderRadius:10,padding:"10px 14px",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}},h("span",{style:{fontSize:10,color:"#64748b",fontWeight:700}},"GPS auto-capture"),h(GPSBar,{gps})),
+    batch&&h("p",{style:{fontSize:11,color:"#4ade80",fontWeight:700,marginBottom:8}},"BATCH — form stays open"),
+    h("div",{style:{display:"flex",gap:10}},h("button",{onClick:onCancel,style:{...B.btn,background:"#334155",flex:1}},"CLOSE"),h("button",{onClick:go,style:{...B.btn,flex:1,opacity:f.num&&f.l?1:.4}},editMode?"UPDATE":batch?"SAVE + NEXT":"SAVE+GPS")));
+}
+
+// ════════════════════════════════════════════════════
+//  TESTS — Seams, Air, Trial, DT — all with edit/delete/search/photo
+// ════════════════════════════════════════════════════
+function TestsTab({d,up,flash,specs,gps}){
+  const[sub,setSub]=useState("seams");const[q,setQ]=useState("");const[adding,setAdding]=useState(false);const[det,setDet]=useState(null);const[editing,setEditing]=useState(null);const[delId,setDelId]=useState(null);const[delType,setDelType]=useState("");
+  const tested=new Set(d.airTests.map(a=>a.seam));
+
+  const addSm=f=>{up({...d,seams:[...d.seams,{...f,id:uid(),gps:gps.stamp(),date:td(),time:nw()}]});flash(f.num+" added");setAdding(false)};
+  const addAir=f=>{const pass=f.sPsi>=specs.minPsi&&(f.sPsi-f.ePsi)<=specs.maxDrop;up({...d,airTests:[...d.airTests,{...f,id:uid(),pass,gps:gps.stamp(),date:td()}]});flash("Air "+(pass?"PASS":"FAIL"));setAdding(false)};
+  const addTW=f=>{up({...d,trialWelds:[...d.trialWelds,{...f,id:uid(),iP:csv(f.iP),oP:csv(f.oP),sh:csv(f.sh),pass:true,gps:gps.stamp(),date:td(),time:nw()}]});flash("Trial saved");setAdding(false)};
+  const addDT=f=>{up({...d,dTests:[...d.dTests,{...f,id:uid(),iP:csv(f.iP),oP:csv(f.oP),sh:csv(f.sh),gps:gps.stamp(),date:td()}]});flash("DT-"+f.dtNum+" saved");setAdding(false)};
+
+  const editSm=(id,f)=>{up({...d,seams:d.seams.map(s=>s.id===id?{...s,...f}:s)});flash("Updated");setEditing(null);setDet(null)};
+  const editAir=(id,f)=>{const pass=f.sPsi>=specs.minPsi&&(f.sPsi-f.ePsi)<=specs.maxDrop;up({...d,airTests:d.airTests.map(a=>a.id===id?{...a,...f,pass}:a)});flash("Updated");setEditing(null);setDet(null)};
+  const editTW=(id,f)=>{up({...d,trialWelds:d.trialWelds.map(t=>t.id===id?{...t,...f,iP:csv(f.iP),oP:csv(f.oP),sh:csv(f.sh)}:t)});flash("Updated");setEditing(null);setDet(null)};
+  const editDT=(id,f)=>{up({...d,dTests:d.dTests.map(t=>t.id===id?{...t,...f,iP:csv(f.iP),oP:csv(f.oP),sh:csv(f.sh)}:t)});flash("Updated");setEditing(null);setDet(null)};
+
+  const doDelete=()=>{
+    if(delType==="seams")up({...d,seams:d.seams.filter(s=>s.id!==delId)});
+    if(delType==="air")up({...d,airTests:d.airTests.filter(a=>a.id!==delId)});
+    if(delType==="trial")up({...d,trialWelds:d.trialWelds.filter(t=>t.id!==delId)});
+    if(delType==="dt")up({...d,dTests:d.dTests.filter(t=>t.id!==delId)});
+    flash("Deleted");setDet(null);setDelId(null);setDelType("")};
+
+  const smList=d.seams.filter(s=>match(s,q)).slice().reverse();
+  const airList=d.airTests.filter(a=>match(a,q)).slice().reverse();
+  const twList=d.trialWelds.filter(t=>match(t,q)).slice().reverse();
+  const dtList=d.dTests.filter(t=>match(t,q)).slice().reverse();
+
+  const dtTrack=useMemo(()=>calcDT(d.seams,d.dTests,specs.dtInterval||500),[d.seams,d.dTests,specs]);
+
+  return h("div",{style:{padding:16}},
+    h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}},h("p",{style:{fontSize:16,fontWeight:900,color:"#f8fafc",margin:0}},"TESTS"),h("button",{onClick:()=>setAdding(true),style:{...B.btn,padding:"10px 14px",fontSize:12}},"+ADD")),
+
+    // DT TRACKING BANNER — auto-calculated
+    dtTrack.totalFt>0&&h("div",{style:{background:dtTrack.due?"rgba(220,38,38,.15)":"rgba(74,222,128,.1)",border:"1px solid "+(dtTrack.due?"rgba(220,38,38,.4)":"rgba(74,222,128,.2)"),borderRadius:14,padding:"10px 14px",marginBottom:10}},
+      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
+        h("div",null,
+          h("p",{style:{fontSize:9,fontWeight:800,color:"#64748b",margin:0}},"WELD FOOTAGE TRACKER"),
+          h("p",{style:{fontSize:16,fontWeight:900,color:"#f8fafc",margin:"2px 0 0"}},fn(dtTrack.totalFt)+"' total · "+dtTrack.dtCount+" DTs")),
+        h("div",{style:{textAlign:"right"}},
+          dtTrack.due?h(F,null,h("p",{style:{fontSize:11,fontWeight:900,color:"#ef4444",margin:0}},"⚠ DT OVERDUE"),h("p",{style:{fontSize:9,color:"#ef4444",margin:"2px 0 0"}},fn(dtTrack.overdue)+"' past due"))
+          :h(F,null,h("p",{style:{fontSize:11,fontWeight:900,color:"#4ade80",margin:0}},"NEXT DT IN"),h("p",{style:{fontSize:14,fontWeight:900,color:"#4ade80",margin:"2px 0 0"}},fn(dtTrack.remaining)+"'"))))),
+
+    h("div",{style:{display:"flex",gap:4,marginBottom:10,overflowX:"auto"}},["seams","air","trial","dt"].map(id=>h("button",{key:id,onClick:()=>{setSub(id);setAdding(false);setDet(null)},style:{...B.chip,flex:1,textAlign:"center",background:sub===id?"rgba(51,65,85,.5)":"rgba(30,41,59,.3)",color:sub===id?"#f8fafc":"#64748b",flexShrink:0}},id==="seams"?"Welds("+d.seams.length+")":id==="air"?"Air("+d.airTests.length+")":id==="trial"?"Trial("+d.trialWelds.length+")":"DT("+d.dTests.length+")"))),
+    h(Search,{q,setQ}),
+
+    // SEAMS LIST
+    sub==="seams"&&smList.map(s=>{const t=tested.has(s.num);return h("button",{key:s.id,onClick:()=>{setDet(s);setDelType("seams")},style:{...B.card,marginBottom:5,padding:"12px 14px",width:"100%",textAlign:"left",cursor:"pointer"}},
+      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},h("div",{style:{display:"flex",alignItems:"center",gap:6}},h("div",{style:{width:8,height:8,borderRadius:4,background:t?"#4ade80":"#f59e0b"}}),h("p",{style:{fontSize:14,fontWeight:900,color:"#f8fafc",margin:0}},s.num),s.gps&&h("span",{style:{fontSize:8,color:"#4ade80"}},"📍"),s.photo&&h("span",{style:{fontSize:8}},"📷")),h("span",{style:{fontSize:9,fontWeight:800,color:t?"#4ade80":"#f59e0b",background:t?"#052e16":"#422006",padding:"3px 10px",borderRadius:6}},t?"AIR ✓":"PENDING")),
+      h("p",{style:{fontSize:10,color:"#64748b",margin:"4px 0 0"}},s.seamer+"/M"+s.machine+"/"+s.temp+"°F@"+s.speed+" · "+fd(s.date)+" "+s.time))}),
+
+    // AIR LIST
+    sub==="air"&&airList.map(a=>h("button",{key:a.id,onClick:()=>{setDet(a);setDelType("air")},style:{...B.card,marginBottom:4,padding:"12px 14px",width:"100%",textAlign:"left",cursor:"pointer"}},
+      h("div",{style:{display:"flex",justifyContent:"space-between"}},h("p",{style:{fontSize:13,fontWeight:900,color:"#f8fafc",margin:0}},a.seam," ",a.gps&&"📍",a.photo&&" 📷"),h("span",{style:{fontSize:9,fontWeight:800,color:a.pass?"#4ade80":"#ef4444",background:a.pass?"#052e16":"#451a1a",padding:"3px 10px",borderRadius:6}},a.pass?"PASS":"FAIL")),
+      h("p",{style:{fontSize:10,color:"#94a3b8",margin:"3px 0 0"}},a.sPsi+"→"+a.ePsi+" PSI (Δ"+(a.sPsi-a.ePsi)+") · "+a.sTime+"–"+a.eTime+" · "+a.tester+" · "+fd(a.date)))),
+
+    // TRIAL LIST
+    sub==="trial"&&twList.map(t=>h("button",{key:t.id,onClick:()=>{setDet(t);setDelType("trial")},style:{...B.card,marginBottom:4,padding:"12px 14px",width:"100%",textAlign:"left",cursor:"pointer"}},
+      h("p",{style:{fontSize:13,fontWeight:900,color:"#f8fafc",margin:0}},t.welder+"/M"+t.machine," ",t.gps&&"📍"),
+      h("p",{style:{fontSize:9,color:"#94a3b8",margin:"2px 0 0"}},(t.type==="wedge"?t.temp+"°F@"+t.speed:"B"+t.barrel+"/PH"+t.preheat)+" QC:"+t.qc+" "+fd(t.date)))),
+    sub==="trial"&&twList.length===0&&h("p",{style:{fontSize:11,color:"#334155",padding:24,textAlign:"center"}},"No trial welds"),
+
+    // DT LIST
+    sub==="dt"&&dtList.map(dt=>h("button",{key:dt.id,onClick:()=>{setDet(dt);setDelType("dt")},style:{...B.card,marginBottom:4,padding:"12px 14px",width:"100%",textAlign:"left",cursor:"pointer"}},
+      h("div",{style:{display:"flex",justifyContent:"space-between"}},h("p",{style:{fontSize:13,fontWeight:900,color:"#f8fafc",margin:0}},"DT-"+dt.dtNum," ",dt.gps&&"📍"),h("p",{style:{fontSize:10,color:"#94a3b8",margin:0}},dt.seam)),
+      h("p",{style:{fontSize:9,color:"#64748b",margin:"2px 0"}},dt.loc))),
+    sub==="dt"&&dtList.length===0&&h("p",{style:{fontSize:11,color:"#334155",padding:24,textAlign:"center"}},"No DTs"),
+
+    // DETAIL SHEET
+    det&&!editing&&h(Sheet,{title:sub==="seams"?"Seam "+det.num:sub==="air"?"Air: "+det.seam:sub==="trial"?det.welder+"/M"+det.machine:"DT-"+det.dtNum,onClose:()=>setDet(null)},
+      det.photo&&h("img",{src:det.photo,style:{width:"100%",height:140,objectFit:"cover",borderRadius:10,marginBottom:8}}),
+      sub==="seams"&&h(F,null,h(G2,null,h(Stat,{l:"DATE",v:det.date}),h(Stat,{l:"TIME",v:det.time})),h(G2,null,h(Stat,{l:"SEAMER",v:det.seamer}),h(Stat,{l:"MACHINE",v:"#"+det.machine})),h(G2,null,h(Stat,{l:"TEMP",v:det.temp+"°F"}),h(Stat,{l:"SPEED",v:det.speed}))),
+      sub==="air"&&h(F,null,h(Stat,{l:"SEAM",v:det.seam}),h(G2,null,h(Stat,{l:"START",v:det.sPsi+" PSI @ "+det.sTime}),h(Stat,{l:"END",v:det.ePsi+" PSI @ "+det.eTime})),h(Stat,{l:"RESULT",v:(det.pass?"PASS":"FAIL")+" (Δ"+(det.sPsi-det.ePsi)+")",c:det.pass?"#4ade80":"#ef4444"}),h(Stat,{l:"TESTER",v:det.tester})),
+      sub==="trial"&&h(F,null,h(G2,null,h(Stat,{l:"QC",v:det.qc}),h(Stat,{l:"TYPE",v:det.type})),h("p",{style:{fontSize:10,color:"#94a3b8",margin:"4px 0"}},"iP:"+(det.iP||[]).join(",")+" oP:"+(det.oP||[]).join(",")+" Sh:"+(det.sh||[]).join(","))),
+      sub==="dt"&&h(F,null,h(G2,null,h(Stat,{l:"SEAM",v:det.seam}),h(Stat,{l:"LOC",v:det.loc})),h(G2,null,h(Stat,{l:"WELDER",v:det.welder}),h(Stat,{l:"MACHINE",v:det.machine})),h("p",{style:{fontSize:10,color:"#94a3b8",margin:"4px 0"}},"iP:"+(det.iP||[]).join(",")+" oP:"+(det.oP||[]).join(",")+" Sh:"+(det.sh||[]).join(","))),
+      h(GPSTag,{c:det.gps}),
+      h("div",{style:{display:"flex",gap:10,marginTop:14}},h("button",{onClick:()=>setEditing(det),style:{...B.btn,flex:1,background:"#334155"}},"EDIT"),h("button",{onClick:()=>setDelId(det.id),style:{...B.btn,flex:1,background:"#7f1d1d"}},"DELETE"))),
+
+    // EDIT SHEETS
+    editing&&sub==="seams"&&h(Sheet,{title:"Edit Seam",onClose:()=>setEditing(null)},h(SmForm,{init:editing,onSubmit:f=>editSm(editing.id,f),onCancel:()=>setEditing(null),gps,editMode:true})),
+    editing&&sub==="air"&&h(Sheet,{title:"Edit Air",onClose:()=>setEditing(null)},h(AirForm,{init:editing,onSubmit:f=>editAir(editing.id,f),onCancel:()=>setEditing(null),specs,gps,editMode:true})),
+    editing&&sub==="trial"&&h(Sheet,{title:"Edit Trial",onClose:()=>setEditing(null)},h(TWForm,{init:{...editing,iP:(editing.iP||[]).join(","),oP:(editing.oP||[]).join(","),sh:(editing.sh||[]).join(",")},onSubmit:f=>editTW(editing.id,f),onCancel:()=>setEditing(null),gps,editMode:true})),
+    editing&&sub==="dt"&&h(Sheet,{title:"Edit DT",onClose:()=>setEditing(null)},h(DTForm,{init:{...editing,iP:(editing.iP||[]).join(","),oP:(editing.oP||[]).join(","),sh:(editing.sh||[]).join(",")},onSubmit:f=>editDT(editing.id,f),onCancel:()=>setEditing(null),n:editing.dtNum,gps,editMode:true})),
+
+    // ADD SHEETS
+    adding&&sub==="seams"&&h(Sheet,{title:"Add Weld",onClose:()=>setAdding(false)},h(SmForm,{onSubmit:addSm,onCancel:()=>setAdding(false),gps})),
+    adding&&sub==="air"&&h(Sheet,{title:"Add Air Test",onClose:()=>setAdding(false)},h(AirForm,{onSubmit:addAir,onCancel:()=>setAdding(false),specs,gps})),
+    adding&&sub==="trial"&&h(Sheet,{title:"Add Trial Weld",onClose:()=>setAdding(false)},h(TWForm,{onSubmit:addTW,onCancel:()=>setAdding(false),gps})),
+    adding&&sub==="dt"&&h(Sheet,{title:"Add DT",onClose:()=>setAdding(false)},h(DTForm,{onSubmit:addDT,onCancel:()=>setAdding(false),n:d.dTests.length+1,gps})),
+    delId&&h(Confirm,{msg:"Delete this record?",onYes:doDelete,onNo:()=>setDelId(null)}));
+}
+
+// ── Test Forms ──
+function SmForm({onSubmit,onCancel,gps,init,editMode}){
+  const[f,sf]=useState(init||{num:"",seamer:"",machine:"",temp:805,speed:6,len:"",photo:"",weather:""});const set=(k,v)=>sf(p=>({...p,[k]:v}));
+  // Auto-fetch weather on mount
+  useEffect(()=>{if(!editMode&&!f.weather)fetchWeather().then(w=>{if(w)sf(p=>({...p,weather:w}))});},[]);
+  return h("div",null,h(CamBtn,{onPhoto:p=>set("photo",p),label:"📷 PHOTO OF WELD"}),h(PhotoPrev,{photo:f.photo,onClear:()=>set("photo","")}),
+    h(Fld,{label:"SEAM #",value:f.num,onChange:v=>set("num",v.toUpperCase()),placeholder:"B5/5A-B6"}),
+    h(G2,null,h(Fld,{label:"SEAMER",value:f.seamer,onChange:v=>set("seamer",v.toUpperCase()),placeholder:"JE"}),h(Fld,{label:"MACHINE",value:f.machine,onChange:v=>set("machine",v)})),
+    h(G2,null,h(Fld,{label:"TEMP °F",value:f.temp,onChange:v=>set("temp",Number(v)),type:"number"}),h(Fld,{label:"SPEED",value:f.speed,onChange:v=>set("speed",Number(v)),type:"number"})),
+    h(Fld,{label:"SEAM LENGTH (ft)",value:f.len,onChange:v=>set("len",Number(v)),type:"number",placeholder:"e.g. 200"}),
+    f.weather&&h("div",{style:{background:"rgba(6,182,212,.1)",borderRadius:10,padding:"8px 12px",marginBottom:10,border:"1px solid rgba(6,182,212,.2)"}},h("p",{style:{fontSize:9,fontWeight:700,color:"#06b6d4",margin:0}},"🌡 WEATHER: "+f.weather)),
+    !editMode&&h("div",{style:{background:"rgba(30,41,59,.4)",borderRadius:10,padding:"10px 14px",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}},h("span",{style:{fontSize:10,color:"#64748b",fontWeight:700}},"GPS auto"),h(GPSBar,{gps})),
+    h("div",{style:{display:"flex",gap:10}},h("button",{onClick:onCancel,style:{...B.btn,background:"rgba(51,65,85,.7)",flex:1}},"CANCEL"),h("button",{onClick:()=>f.num?onSubmit(f):null,style:{...B.btn,flex:1,opacity:f.num?1:.4}},editMode?"UPDATE":"SAVE+GPS")));
+}
+function AirForm({onSubmit,onCancel,specs,gps,init,editMode}){
+  const[f,sf]=useState(init||{seam:"",sTime:nw(),sPsi:36,eTime:"",ePsi:"",tester:"",photo:"",weather:""});const set=(k,v)=>sf(p=>({...p,[k]:v}));
+  useEffect(()=>{if(!editMode&&!f.weather)fetchWeather().then(w=>{if(w)sf(p=>({...p,weather:w}))});},[]);
+  const drop=f.sPsi&&f.ePsi?f.sPsi-f.ePsi:null;const pass=drop!==null?f.sPsi>=specs.minPsi&&drop<=specs.maxDrop:null;
+  return h("div",null,h(CamBtn,{onPhoto:p=>set("photo",p),label:"📷 PHOTO OF GAUGE"}),h(PhotoPrev,{photo:f.photo,onClear:()=>set("photo","")}),
+    h(Fld,{label:"SEAM #",value:f.seam,onChange:v=>set("seam",v.toUpperCase()),placeholder:"B5/5A-B6"}),
+    h(G2,null,h(Fld,{label:"START PSI",value:f.sPsi,onChange:v=>set("sPsi",Number(v)),type:"number"}),h(Fld,{label:"END PSI",value:f.ePsi,onChange:v=>set("ePsi",Number(v)),type:"number"})),
+    h(G2,null,h(Fld,{label:"START TIME",value:f.sTime,onChange:v=>set("sTime",v),type:"time"}),h(Fld,{label:"END TIME",value:f.eTime,onChange:v=>set("eTime",v),type:"time"})),
+    h(Fld,{label:"TESTER",value:f.tester,onChange:v=>set("tester",v.toUpperCase()),placeholder:"LE"}),
+    f.weather&&h("div",{style:{background:"rgba(6,182,212,.1)",borderRadius:10,padding:"8px 12px",marginBottom:10,border:"1px solid rgba(6,182,212,.2)"}},h("p",{style:{fontSize:9,fontWeight:700,color:"#06b6d4",margin:0}},"🌡 "+f.weather)),
+    drop!==null&&h("div",{style:{background:pass?"rgba(4,46,22,.8)":"rgba(69,26,26,.8)",borderRadius:12,padding:10,marginTop:6,textAlign:"center",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)"}},h("p",{style:{fontSize:16,fontWeight:900,color:pass?"#4ade80":"#ef4444",margin:0}},"Δ"+drop+" PSI — "+(pass?"PASS":"FAIL"))),
+    h("div",{style:{display:"flex",gap:10,marginTop:14}},h("button",{onClick:onCancel,style:{...B.btn,background:"rgba(51,65,85,.7)",flex:1}},"CANCEL"),h("button",{onClick:()=>f.seam&&f.ePsi?onSubmit(f):null,style:{...B.btn,flex:1,opacity:f.seam&&f.ePsi?1:.4}},editMode?"UPDATE":"SAVE+GPS")));
+}
+function TWForm({onSubmit,onCancel,gps,init,editMode}){
+  const[f,sf]=useState(init||{qc:"SL",welder:"",machine:"",type:"wedge",temp:805,speed:6,barrel:505,preheat:405,iP:"",oP:"",sh:"",photo:""});const set=(k,v)=>sf(p=>({...p,[k]:v}));
+  return h("div",null,h(CamBtn,{onPhoto:p=>set("photo",p),label:"📷 PHOTO OF COUPON"}),h(PhotoPrev,{photo:f.photo,onClear:()=>set("photo","")}),
+    h(G2,null,h(Fld,{label:"QC",value:f.qc,onChange:v=>set("qc",v.toUpperCase())}),h(Fld,{label:"WELDER",value:f.welder,onChange:v=>set("welder",v.toUpperCase()),placeholder:"JE"})),
+    h(G2,null,h(Fld,{label:"MACHINE",value:f.machine,onChange:v=>set("machine",v)}),h(Sel,{label:"TYPE",value:f.type,onChange:v=>set("type",v),opts:[["wedge","Wedge"],["extrusion","Extrusion"]]})),
+    f.type==="wedge"?h(G2,null,h(Fld,{label:"TEMP °F",value:f.temp,onChange:v=>set("temp",Number(v)),type:"number"}),h(Fld,{label:"SPEED",value:f.speed,onChange:v=>set("speed",Number(v)),type:"number"})):h(G2,null,h(Fld,{label:"BARREL °F",value:f.barrel,onChange:v=>set("barrel",Number(v)),type:"number"}),h(Fld,{label:"PREHEAT °F",value:f.preheat,onChange:v=>set("preheat",Number(v)),type:"number"})),
+    h(Fld,{label:"INNER PEEL",value:f.iP,onChange:v=>set("iP",v),placeholder:"149,131,148"}),h(Fld,{label:"OUTER PEEL",value:f.oP,onChange:v=>set("oP",v)}),h(Fld,{label:"SHEAR",value:f.sh,onChange:v=>set("sh",v)}),
+    h("div",{style:{display:"flex",gap:10}},h("button",{onClick:onCancel,style:{...B.btn,background:"#334155",flex:1}},"CANCEL"),h("button",{onClick:()=>f.welder?onSubmit(f):null,style:{...B.btn,flex:1,opacity:f.welder?1:.4}},editMode?"UPDATE":"SAVE+GPS")));
+}
+function DTForm({onSubmit,onCancel,n,gps,init,editMode}){
+  const[f,sf]=useState(init||{dtNum:String(n),welder:"",machine:"",temp:805,speed:6,seam:"",loc:"",iP:"",oP:"",sh:"",photo:""});const set=(k,v)=>sf(p=>({...p,[k]:v}));
+  return h("div",null,h(CamBtn,{onPhoto:p=>set("photo",p),label:"📷 PHOTO OF DT SAMPLE"}),h(PhotoPrev,{photo:f.photo,onClear:()=>set("photo","")}),
+    h(G2,null,h(Fld,{label:"DT #",value:f.dtNum,onChange:v=>set("dtNum",v)}),h(Fld,{label:"SEAM #",value:f.seam,onChange:v=>set("seam",v.toUpperCase()),placeholder:"B4-B5"})),
+    h(Fld,{label:"LOCATION",value:f.loc,onChange:v=>set("loc",v),placeholder:"87' N. OF SAT"}),
+    h(G2,null,h(Fld,{label:"WELDER",value:f.welder,onChange:v=>set("welder",v.toUpperCase())}),h(Fld,{label:"MACHINE",value:f.machine,onChange:v=>set("machine",v)})),
+    h(Fld,{label:"INNER PEEL (5)",value:f.iP,onChange:v=>set("iP",v),placeholder:"138,137,131,133,144"}),h(Fld,{label:"OUTER PEEL",value:f.oP,onChange:v=>set("oP",v)}),h(Fld,{label:"SHEAR",value:f.sh,onChange:v=>set("sh",v)}),
+    h("div",{style:{display:"flex",gap:10}},h("button",{onClick:onCancel,style:{...B.btn,background:"#334155",flex:1}},"CANCEL"),h("button",{onClick:()=>f.seam?onSubmit(f):null,style:{...B.btn,flex:1,opacity:f.seam?1:.4}},editMode?"UPDATE":"SAVE+GPS")));
+}
+
+// ════════════════════════════════════════════════════
+//  QA — repairs, validation gate, export, BACKUP
+// ════════════════════════════════════════════════════
+function QATab({d,up,flash,stats,specs,store,persist,proj,gps}){
+  const[sub,setSub]=useState("gate");const[q,setQ]=useState("");const[adding,setAdding]=useState(false);const[det,setDet]=useState(null);const[editing,setEditing]=useState(null);const[delId,setDelId]=useState(null);
+  const addV=f=>{up({...d,vacuums:[...d.vacuums,{...f,id:uid(),gps:gps.stamp(),dateRep:td(),repNum:f.repNum||String(d.vacuums.length+1)}]});flash("Repair saved");setAdding(false)};
+  const editV=(id,f)=>{up({...d,vacuums:d.vacuums.map(v=>v.id===id?{...v,...f}:v)});flash("Updated");setEditing(null);setDet(null)};
+  const delV=id=>{up({...d,vacuums:d.vacuums.filter(v=>v.id!==id)});flash("Deleted");setDet(null);setDelId(null)};
+  const vList=d.vacuums.filter(v=>match(v,q)).slice().reverse();
+
+  const dtI=specs.dtInterval||500;const dtT=calcDT(d.seams,d.dTests,dtI);
+  const checks=[{l:"All seams air tested",ok:d.seams.length===0||d.seams.every(s=>d.airTests.some(a=>a.seam===s.num))},{l:"No air failures",ok:d.airTests.every(a=>a.pass)},{l:"DT per "+dtI+"' ("+dtT.dtCount+"/"+dtT.required+" req)",ok:!dtT.due},{l:"All repairs accepted",ok:d.vacuums.every(v=>!!v.dateAccept)},{l:"Trial welds on file",ok:d.trialWelds.length>0},{l:"GPS on all panels",ok:d.panels.length===0||d.panels.every(p=>!!p.gps)},{l:"Perimeter mapped (≥3)",ok:(d.perimeter||[]).length>=3},{l:"Zero punch items",ok:(stats.punch?.length||0)===0}];
+  const allOk=checks.every(c=>c.ok);
+
+  return h("div",{style:{padding:16}},
+    h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}},h("p",{style:{fontSize:16,fontWeight:900,color:"#f8fafc",margin:0}},"QA"),sub==="vac"&&h("button",{onClick:()=>setAdding(true),style:{...B.btn,padding:"10px 14px",fontSize:12}},"+ADD")),
+    h("div",{style:{display:"flex",gap:4,marginBottom:10}},["gate","vac","backup"].map(id=>h("button",{key:id,onClick:()=>setSub(id),style:{...B.chip,flex:1,textAlign:"center",background:sub===id?"#334155":"#1e293b",color:sub===id?"#f8fafc":"#64748b"}},id==="gate"?"Gate":id==="vac"?"Repairs("+d.vacuums.length+")":"Backup"))),
+
+    // GATE
+    sub==="gate"&&h("div",null,
+      h("div",{style:{...B.card,textAlign:"center",padding:20,marginBottom:10}},h("div",{style:{width:52,height:52,borderRadius:26,background:allOk?"#052e16":"#451a1a",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 10px"}},h("span",{style:{fontSize:26}},allOk?"✓":"✕")),h("p",{style:{fontSize:16,fontWeight:900,color:"#f8fafc",margin:0}},"VALIDATION GATE"),h("p",{style:{fontSize:11,fontWeight:800,color:allOk?"#4ade80":"#ef4444",letterSpacing:1,margin:"4px 0 0"}},allOk?"READY FOR CQA SIGN-OFF":"INCOMPLETE")),
+      checks.map((c,i)=>h("div",{key:i,style:{...B.card,marginBottom:4,padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}},h("p",{style:{fontSize:12,fontWeight:600,color:"#e2e8f0",margin:0}},c.l),h("div",{style:{width:24,height:24,borderRadius:12,background:c.ok?"#052e16":"#1e293b",display:"flex",alignItems:"center",justifyContent:"center"}},h("span",{style:{fontSize:13,color:c.ok?"#4ade80":"#475569"}},c.ok?"✓":"—"))))),
+
+    // REPAIRS
+    sub==="vac"&&h("div",null,h(Search,{q,setQ}),
+      vList.map(v=>h("button",{key:v.id,onClick:()=>setDet(v),style:{...B.card,marginBottom:5,padding:"12px 14px",width:"100%",textAlign:"left",cursor:"pointer"}},
+        h("div",{style:{display:"flex",justifyContent:"space-between"}},h("div",{style:{display:"flex",alignItems:"center",gap:4}},v.photo&&h("img",{src:v.photo,style:{width:24,height:24,borderRadius:4,objectFit:"cover"}}),h("p",{style:{fontSize:13,fontWeight:900,color:"#f8fafc",margin:0}},"#"+v.repNum),v.gps&&h("span",{style:{fontSize:8,color:"#4ade80"}},"📍")),h("span",{style:{fontSize:9,fontWeight:800,color:v.dateAccept?"#4ade80":"#f59e0b",background:v.dateAccept?"#052e16":"#422006",padding:"3px 10px",borderRadius:6}},v.dateAccept?"ACCEPTED":"PENDING")),
+        h("p",{style:{fontSize:10,color:"#94a3b8",margin:"3px 0 0"}},v.loc),h("p",{style:{fontSize:9,color:"#64748b",margin:"2px 0 0"}},(RT[v.type]||v.type)+" · "+v.by+" · "+fd(v.dateRep)))),
+      det&&!editing&&h(Sheet,{title:"Repair #"+det.repNum,onClose:()=>setDet(null)},
+        det.photo&&h("img",{src:det.photo,style:{width:"100%",height:140,objectFit:"cover",borderRadius:10,marginBottom:8}}),
+        h(Stat,{l:"LOCATION",v:det.loc}),h(G2,null,h(Stat,{l:"BY",v:det.by}),h(Stat,{l:"TYPE",v:RT[det.type]||det.type})),h(G2,null,h(Stat,{l:"REPAIRED",v:det.dateRep}),h(Stat,{l:"ACCEPTED",v:det.dateAccept||"PENDING",c:det.dateAccept?"#4ade80":"#f59e0b"})),det.dt&&h(Stat,{l:"DT REF",v:det.dt}),h(GPSTag,{c:det.gps}),
+        h("div",{style:{display:"flex",gap:10,marginTop:14}},h("button",{onClick:()=>setEditing(det),style:{...B.btn,flex:1,background:"#334155"}},"EDIT"),h("button",{onClick:()=>setDelId(det.id),style:{...B.btn,flex:1,background:"#7f1d1d"}},"DELETE"))),
+      editing&&h(Sheet,{title:"Edit Repair",onClose:()=>setEditing(null)},h(VacForm,{init:editing,onSubmit:f=>editV(editing.id,f),onCancel:()=>setEditing(null),n:editing.repNum,gps,editMode:true})),
+      adding&&h(Sheet,{title:"Add Repair",onClose:()=>setAdding(false)},h(VacForm,{onSubmit:addV,onCancel:()=>setAdding(false),n:d.vacuums.length+1,gps})),
+      delId&&h(Confirm,{msg:"Delete repair?",onYes:()=>delV(delId),onNo:()=>setDelId(null)})),
+
+    // BACKUP — TWO WAYS
+    sub==="backup"&&h("div",null,
+      h("div",{style:{background:"#052e16",border:"2px solid #16a34a",borderRadius:12,padding:16,marginBottom:16}},
+        h("p",{style:{fontSize:15,fontWeight:900,color:"#4ade80",margin:"0 0 4px"}},"⬇  FULL PROJECT BACKUP"),
+        h("p",{style:{fontSize:10,color:"#94a3b8",margin:"0 0 12px"}},"Saves EVERYTHING — all "+d.panels.length+" panels, "+d.seams.length+" seams, "+d.airTests.length+" air tests, "+d.dTests.length+" DTs, "+d.vacuums.length+" repairs, photos, GPS, all of it."),
+        h("button",{onClick:()=>{backupToGoogleDrive(proj.id,proj.name);flash("Share sheet opened")},style:{...B.btn,width:"100%",background:"#16a34a",padding:16,fontSize:15,marginBottom:8}},"☁️  SEND TO GOOGLE DRIVE"),
+        h("button",{onClick:()=>{backupLocal(proj.id,proj.name);flash("Downloaded")},style:{...B.btn,width:"100%",background:"#2563eb",padding:14,fontSize:13}},"💾  SAVE TO PHONE")),
+
+      h("p",{style:{...B.sec,marginTop:16}},"INDIVIDUAL CSV EXPORTS"),
+      h("p",{style:{fontSize:9,color:"#64748b",margin:"0 0 8px"}},"Exports one log at a time. Gray = empty, won't export."),
+      [["Panels ("+d.panels.length+")",["date","num","roll","w","l","area","zone"],"panels"],
+       ["Seams ("+d.seams.length+")",["date","time","num","seamer","machine","temp","speed"],"seams"],
+       ["Air Tests ("+d.airTests.length+")",["date","seam","sTime","sPsi","eTime","ePsi","pass","tester"],"airTests"],
+       ["Trial Welds ("+d.trialWelds.length+")",["date","time","qc","welder","machine","type","temp","speed"],"trialWelds"],
+       ["DTs ("+d.dTests.length+")",["date","dtNum","welder","machine","seam","loc"],"dTests"],
+       ["Repairs ("+d.vacuums.length+")",["dateRep","repNum","loc","by","type","dateAccept","tester","dt"],"vacuums"]
+      ].map(([label,hdrs,key],i)=>{const cnt=d[key]?.length||0;return h("button",{key:i,onClick:()=>expCSV(key,hdrs,proj.id,key),style:{...B.btn,width:"100%",marginBottom:6,background:cnt>0?"#334155":"#1e293b",padding:12,fontSize:12,color:cnt>0?"#f8fafc":"#334155"}},label+" CSV")}),
+
+      h("p",{style:{...B.sec,marginTop:20}},"⚠️  DANGER ZONE"),
+      h("button",{onClick:()=>{if(confirm("Clear ALL data for "+proj.name+"?"))up({...EMPTY})},style:{...B.btn,background:"#7f1d1d",width:"100%",marginTop:4,padding:14}},"CLEAR ALL DATA"),
+      h("button",{onClick:()=>{if(confirm('DELETE "'+proj.name+'" permanently?'))persist({...store,projects:store.projects.filter(p=>p.id!==proj.id),active:null})},style:{...B.btn,background:"#450a0a",width:"100%",marginTop:8,padding:14}},"DELETE PROJECT"))
+  );
+}
+function VacForm({onSubmit,onCancel,n,gps,init,editMode}){
+  const[f,sf]=useState(init||{repNum:String(n),loc:"",by:"SL",type:"P",leaks:0,dateAccept:"",tester:"",dt:"",photo:""});const set=(k,v)=>sf(p=>({...p,[k]:v}));
+  return h("div",null,
+    h(CamBtn,{onPhoto:p=>set("photo",p),label:"📷 PHOTO OF REPAIR"}),h(PhotoPrev,{photo:f.photo,onClear:()=>set("photo","")}),
+    h(G2,null,h(Fld,{label:"REP #",value:f.repNum,onChange:v=>set("repNum",v)}),h(Fld,{label:"BY",value:f.by,onChange:v=>set("by",v.toUpperCase())})),
+    h(Fld,{label:"LOCATION",value:f.loc,onChange:v=>set("loc",v.toUpperCase()),placeholder:"B4-B5 87' N. OF SAT"}),
+    h(G2,null,h(Sel,{label:"TYPE",value:f.type,onChange:v=>set("type",v),opts:[["B","Boot/Cap"],["P","Extrusion Patch"],["DP","Detail/Overlap"]]}),h(Fld,{label:"DT REF",value:f.dt,onChange:v=>set("dt",v.toUpperCase()),placeholder:"DT-1"})),
+    h(G2,null,h(Fld,{label:"ACCEPTED",value:f.dateAccept,onChange:v=>set("dateAccept",v),type:"date"}),h(Fld,{label:"TESTER",value:f.tester,onChange:v=>set("tester",v.toUpperCase())})),
+    !editMode&&h("div",{style:{background:"#1e293b",borderRadius:10,padding:"10px 14px",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}},h("span",{style:{fontSize:10,color:"#64748b",fontWeight:700}},"GPS auto"),h(GPSBar,{gps})),
+    h("div",{style:{display:"flex",gap:10}},h("button",{onClick:onCancel,style:{...B.btn,background:"#334155",flex:1}},"CANCEL"),h("button",{onClick:()=>f.loc?onSubmit(f):null,style:{...B.btn,flex:1,opacity:f.loc?1:.4}},editMode?"UPDATE":"SAVE+GPS")));
+}
+
+ReactDOM.render(h(App),document.getElementById("root"));
+</script></body></html>
