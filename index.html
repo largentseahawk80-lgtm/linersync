@@ -142,18 +142,20 @@ function bkLocal(pid,pn){const p=getFP(pid);if(!p?.data){alert("No data");return
 function expCSV(name,hdrs,pid,key){const p=getFP(pid);if(!p?.data)return alert("No data");const rows=p.data[key]||[];if(!rows.length)return alert("No "+name+" (0)");const csv=[hdrs.join(","),...rows.map(r=>hdrs.map(k=>{const v=r[k];if(v==null)return'""';if(typeof v==="object")return'"'+JSON.stringify(v).replace(/"/g,'""')+'"';return'"'+String(v).replace(/"/g,'""')+'"'}).join(","))].join("\n");dlB(new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),name+"_"+td()+".csv")}
 
 // XLS WORKBOOK — 7 sheets matching CQA format
-function expXLS(pid,pn){
-  if(typeof XLSX==="undefined"||!XLSX){alert("XLS export unavailable — library failed to load. Use CSV instead.");return}
-  const p=getFP(pid);if(!p?.data)return alert("No data");const d=p.data,wb=XLSX.utils.book_new();
-  const aoa=(h,r)=>XLSX.utils.aoa_to_sheet([h,...r]);
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([["PROJECT",p.name],["AREA",p.area],["MATERIAL",p.material],["CONTRACTOR",p.contractor],["MIN PSI",p.specs?.minPsi],["MAX DROP",p.specs?.maxDrop],["DT INTERVAL",p.specs?.dtInterval||500]]),"PROJECT");
-  XLSX.utils.book_append_sheet(wb,aoa(["DATE","PANEL#","ROLL#","WIDTH","LENGTH","AREA","ZONE"],d.panels.map(x=>[x.date,x.num,x.roll,x.w,x.l,x.area,x.zone])),"PANELS");
-  XLSX.utils.book_append_sheet(wb,aoa(["DATE","TIME","SEAM#","SEAMER","MACHINE","TEMP","SPEED","LENGTH","WEATHER"],d.seams.map(x=>[x.date,x.time,x.num,x.seamer,x.machine,x.temp,x.speed,x.len||"",x.weather||""])),"WEDGEWELD");
-  XLSX.utils.book_append_sheet(wb,aoa(["DATE","TIME","QC","WELDER","MACHINE","TYPE","TEMP","SPEED","INNER PEEL","OUTER PEEL","SHEAR"],d.trialWelds.map(x=>[x.date,x.time,x.qc,x.welder,x.machine,x.type,x.temp,x.speed,(x.iP||[]).join("/"),(x.oP||[]).join("/"),(x.sh||[]).join("/")])),"TRIALWELD");
-  XLSX.utils.book_append_sheet(wb,aoa(["DATE","SEAM#","START PSI","END PSI","START TIME","END TIME","PASS","TESTER","WEATHER"],d.airTests.map(x=>[x.date,x.seam,x.sPsi,x.ePsi,x.sTime,x.eTime,x.pass?"PASS":"FAIL",x.tester,x.weather||""])),"AIRTEST");
-  XLSX.utils.book_append_sheet(wb,aoa(["DATE","DT#","SEAM#","LOCATION","WELDER","MACHINE","INNER PEEL","OUTER PEEL","SHEAR"],d.dTests.map(x=>[x.date,x.dtNum,x.seam,x.loc,x.welder,x.machine,(x.iP||[]).join("/"),(x.oP||[]).join("/"),(x.sh||[]).join("/")])),"DESTRUCT");
-  XLSX.utils.book_append_sheet(wb,aoa(["DATE REP","REP#","LOCATION","BY","TYPE","DATE ACCEPTED","TESTER","DT REF"],d.vacuums.map(x=>[x.dateRep,x.repNum,x.loc,x.by,x.type,x.dateAccept||"",x.tester||"",x.dt||""])),"VACUUM");
-  XLSX.writeFile(wb,(pn||"project").replace(/\s+/g,"_")+"_CQA_"+td()+".xlsx");
+async function expXLS(pid,pn){
+  if(typeof XLSX==="undefined"||!XLSX){alert("XLS export unavailable — library failed to load. Use CSV instead.");return} 
+  const p=await getFP(pid);
+  if(!p?.data)return alert("No data");
+  const d=p.data,wb=XLSX.utils.book_new(); 
+  const aoa=(h,r)=>XLSX.utils.aoa_to_sheet([h,...r]); 
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([["PROJECT",p.name],["AREA",p.area],["MATERIAL",p.material],["CONTRACTOR",p.contractor],["MIN PSI",p.specs?.minPsi],["MAX DROP",p.specs?.maxDrop],["DT INTERVAL",p.specs?.dtInterval||500]]),"PROJECT"); 
+  XLSX.utils.book_append_sheet(wb,aoa(["DATE","PANEL#","ROLL#","WIDTH","LENGTH","AREA","ZONE"],d.panels.map(x=>[x.date,x.num,x.roll,x.w,x.l,x.area,x.zone])),"PANELS"); 
+  XLSX.utils.book_append_sheet(wb,aoa(["DATE","TIME","SEAM#","SEAMER","MACHINE","TEMP","SPEED","LENGTH","WEATHER"],d.seams.map(x=>[x.date,x.time,x.num,x.seamer,x.machine,x.temp,x.speed,x.len||"",x.weather||""])),"WEDGEWELD"); 
+  XLSX.utils.book_append_sheet(wb,aoa(["DATE","TIME","QC","WELDER","MACHINE","TYPE","TEMP","SPEED","INNER PEEL","OUTER PEEL","SHEAR"],d.trialWelds.map(x=>[x.date,x.time,x.qc,x.welder,x.machine,x.type,x.temp,x.speed,(x.iP||[]).join("/"),(x.oP||[]).join("/"),(x.sh||[]).join("/")])),"TRIALWELD"); 
+  XLSX.utils.book_append_sheet(wb,aoa(["DATE","SEAM#","START PSI","END PSI","START TIME","END TIME","PASS","TESTER","WEATHER"],d.airTests.map(x=>[x.date,x.seam,x.sPsi,x.ePsi,x.sTime,x.eTime,x.pass?"PASS":"FAIL",x.tester,x.weather||""])),"AIRTEST"); 
+  XLSX.utils.book_append_sheet(wb,aoa(["DATE","DT#","SEAM#","LOCATION","WELDER","MACHINE","INNER PEEL","OUTER PEEL","SHEAR"],d.dTests.map(x=>[x.date,x.dtNum,x.seam,x.loc,x.welder,x.machine,(x.iP||[]).join("/"),(x.oP||[]).join("/"),(x.sh||[]).join("/")])),"DESTRUCT"); 
+  XLSX.utils.book_append_sheet(wb,aoa(["DATE REP","REP#","LOCATION","BY","TYPE","DATE ACCEPTED","TESTER","DT REF"],d.vacuums.map(x=>[x.dateRep,x.repNum,x.loc,x.by,x.type,x.dateAccept||"",x.tester||"",x.dt||""])),"VACUUM"); 
+  XLSX.writeFile(wb,(pn||"project").replace(/\s+/g,"_")+"_CQA_"+td()+".xlsx"); 
 }
 
 // ═══ EXIF GPS — reads GPS from drone JPEGs ═══
