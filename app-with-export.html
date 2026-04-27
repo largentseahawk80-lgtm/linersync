@@ -15,16 +15,16 @@
   </style>
 </head>
 <body>
-  <iframe id="appFrame" src="./tools/field-capture.html" title="LinerSync Field Capture"></iframe>
-  <div id="toast" class="toast">Field Hub: Capture is home. Mythos warns. Final builds. Exports stay ready.</div>
+  <iframe id="appFrame" src="./tools/capture-menu.html" title="LinerSync Capture Menu"></iframe>
+  <div id="toast" class="toast">Field Hub: Capture menu is home. Pick QC Logs or Repair Map.</div>
   <nav class="hub" aria-label="LinerSync field hub navigation">
     <div class="row">
-      <button class="btn capture" onclick="go('./tools/field-capture.html')"><span class="ico">📷</span><span>CAPTURE</span></button>
+      <button class="btn capture" onclick="go('./tools/capture-menu.html')"><span class="ico">📷</span><span>CAPTURE</span></button>
       <button class="btn mythos" onclick="go('./tools/mythos-agent.html')"><span class="ico">🛡️</span><span>MYTHOS</span></button>
       <button class="btn final" onclick="go('./tools/final-package.html')"><span class="ico">✅</span><span>FINAL</span></button>
       <button class="btn exports" onclick="go('./tools/export-center.html')"><span class="ico">⬆️</span><span>EXPORT</span></button>
     </div>
-    <div class="mini">Capture → Mythos → Final → Export</div>
+    <div class="mini">Capture Menu → QC Logs / Repair Map → Mythos → Final → Export</div>
   </nav>
   <script>
     function go(url){document.getElementById('appFrame').src=url;document.getElementById('toast').classList.add('hide')}
