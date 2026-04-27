@@ -7,7 +7,7 @@
   <title>LinerSync Export Workbook</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
-    *{box-sizing:border-box}body{margin:0;background:#020617;color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,sans-serif}.wrap{max-width:900px;margin:0 auto;padding:18px}.card{background:#0f172a;border:1px solid #1f2937;border-radius:18px;padding:16px;margin:12px 0;box-shadow:0 12px 40px rgba(0,0,0,.25)}h1{margin:0 0 6px;font-size:28px}.sub{color:#94a3b8;margin:0 0 14px}.btn{width:100%;border:0;border-radius:14px;padding:16px;margin:8px 0;font-weight:900;font-size:15px;color:#fff;background:#2563eb}.btn.green{background:#16a34a}.btn.gray{background:#334155}.pill{display:inline-block;background:#111827;border:1px solid #334155;border-radius:999px;padding:6px 10px;margin:4px;font-size:12px;color:#cbd5e1}.small{font-size:12px;color:#94a3b8}.row{display:grid;grid-template-columns:1fr;gap:10px}@media(min-width:700px){.row{grid-template-columns:1fr 1fr}}select,input{width:100%;background:#111827;color:#fff;border:1px solid #334155;border-radius:12px;padding:14px;font-size:16px}pre{white-space:pre-wrap;color:#cbd5e1;background:#020617;border:1px solid #1e293b;border-radius:12px;padding:12px;max-height:300px;overflow:auto}
+    *{box-sizing:border-box}body{margin:0;background:#020617;color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,sans-serif}.wrap{max-width:900px;margin:0 auto;padding:18px}.card{background:#0f172a;border:1px solid #1f2937;border-radius:18px;padding:16px;margin:12px 0;box-shadow:0 12px 40px rgba(0,0,0,.25)}h1{margin:0 0 6px;font-size:28px}h3{margin:0 0 10px}.sub{color:#94a3b8;margin:0 0 14px}.btn{width:100%;border:0;border-radius:14px;padding:16px;margin:8px 0;font-weight:900;font-size:15px;color:#fff;background:#2563eb}.btn.green{background:#16a34a}.btn.gray{background:#334155}.btn:active{transform:scale(.99)}.pill{display:inline-block;background:#111827;border:1px solid #334155;border-radius:999px;padding:6px 10px;margin:4px;font-size:12px;color:#cbd5e1}.small{font-size:12px;color:#94a3b8}.row{display:grid;grid-template-columns:1fr;gap:10px}.counts{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:12px 0}.count{background:#020617;border:1px solid #1e293b;border-radius:14px;padding:12px}.count strong{display:block;font-size:22px}.count span{font-size:11px;color:#94a3b8;text-transform:uppercase;font-weight:800}.ok{border-color:#16a34a;background:rgba(22,163,74,.12);color:#bbf7d0}.warn{border-color:#f97316;background:rgba(249,115,22,.12);color:#fed7aa}.bad{border-color:#ef4444;background:rgba(239,68,68,.12);color:#fecaca}.notice{border:1px solid #334155;background:#020617;border-radius:14px;padding:12px;margin:10px 0}.notice strong{display:block;margin-bottom:4px}select,input{width:100%;background:#111827;color:#fff;border:1px solid #334155;border-radius:12px;padding:14px;font-size:16px}pre{white-space:pre-wrap;color:#cbd5e1;background:#020617;border:1px solid #1e293b;border-radius:12px;padding:12px;max-height:300px;overflow:auto}@media(min-width:700px){.row{grid-template-columns:1fr 1fr}.counts{grid-template-columns:repeat(4,1fr)}}
   </style>
 </head>
 <body>
@@ -19,12 +19,14 @@
     </section>
 
     <section class="card">
-      <label class="small">Project</label>
+      <label class="small">Project selected</label>
       <select id="projectSelect"></select>
       <div id="counts"></div>
+      <div id="warningBox"></div>
       <button class="btn green" id="exportBtn">EXPORT CQA XLSX WORKBOOK</button>
-      <button class="btn" id="dailyBtn">EXPORT DAILY REPORT XLSX</button>
+      <button class="btn" id="dailyBtn">EXPORT DAILY AS-BUILT XLSX</button>
       <button class="btn gray" id="jsonBtn">DOWNLOAD RAW PROJECT JSON</button>
+      <div id="lastExport" class="notice"><strong>Export status</strong><span>No file exported yet.</span></div>
     </section>
 
     <section class="card">
@@ -56,8 +58,12 @@ function downloadBlob(blob,name){const u=URL.createObjectURL(blob);const a=docum
 function aoaSheet(headers, rows){const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);ws['!cols']=headers.map(h=>({wch:Math.max(12,String(h).length+2)}));return ws;}
 function addSheet(wb,name,headers,rows){XLSX.utils.book_append_sheet(wb,aoaSheet(headers,rows),name.slice(0,31));}
 function projectData(p){return p.data||{};}
-function countLine(d){return `${(d.panels||[]).length} panels, ${(d.seams||[]).length} seams, ${(d.airTests||[]).length} air, ${(d.dTests||[]).length} DT, ${(d.vacuums||[]).length} repairs, ${(d.rolls||[]).length} rolls, ${(d.dronePhotos||[]).length} drone photos`;}
 function currentProject(){return projects[$('projectSelect').selectedIndex]||null;}
+function countsFor(d){return {panels:(d.panels||[]).length,seams:(d.seams||[]).length,air:(d.airTests||[]).length,dt:(d.dTests||[]).length,repairs:(d.vacuums||[]).length,rolls:(d.rolls||[]).length,weldTests:(d.trialWelds||[]).length+(d.extWelds||[]).length,drone:(d.dronePhotos||[]).length};}
+function totalQc(c){return c.panels+c.seams+c.air+c.dt+c.repairs+c.rolls+c.weldTests+c.drone;}
+function countCards(c){return `<div class="counts"><div class="count"><strong>${c.panels}</strong><span>Panels</span></div><div class="count"><strong>${c.seams}</strong><span>Seams</span></div><div class="count"><strong>${c.air}</strong><span>Air</span></div><div class="count"><strong>${c.dt}</strong><span>DT</span></div><div class="count"><strong>${c.repairs}</strong><span>Repairs</span></div><div class="count"><strong>${c.rolls}</strong><span>Rolls</span></div><div class="count"><strong>${c.weldTests}</strong><span>Weld Tests</span></div><div class="count"><strong>${c.drone}</strong><span>Drone</span></div></div>`;}
+function showExportResult(kind,name,p,c){$('lastExport').className='notice ok';$('lastExport').innerHTML=`<strong>Download started</strong><span>${kind}: <b>${name}</b><br>Project: <b>${p.name||'Unnamed Project'}</b><br>Data included: ${totalQc(c)} saved QC item(s).</span>`;$('status').textContent=`Created ${name}`;}
+function showWarning(c){if(totalQc(c)===0){$('warningBox').innerHTML='<div class="notice warn"><strong>Missing-data warning</strong><span>This project has zero saved QC records. The workbook will export the project header and blank sheets only.</span></div>';return;}$('warningBox').innerHTML='<div class="notice ok"><strong>Data ready</strong><span>Saved QC records were found. Workbook will include available records and blank sheets for empty sections.</span></div>';}
 
 function buildWorkbook(p, onlyDaily=false){
   if(!window.XLSX) throw new Error('XLSX library did not load. Check internet connection.');
@@ -103,17 +109,17 @@ function buildWorkbook(p, onlyDaily=false){
   return wb;
 }
 
-function exportWorkbook(onlyDaily=false){const p=currentProject();if(!p)return alert('No project selected.');const wb=buildWorkbook(p,onlyDaily);const name=`${safeName(p.name||'LinerSync')}_${onlyDaily?'Daily_AsBuilt':'CQA_Workbook'}_${today()}.xlsx`;XLSX.writeFile(wb,name);$('status').textContent=`Created ${name}`;}
-function exportJson(){const p=currentProject();if(!p)return alert('No project selected.');downloadBlob(new Blob([JSON.stringify(p,null,2)],{type:'application/json'}),`${safeName(p.name||'LinerSync')}_RAW_${today()}.json`);}
+function exportWorkbook(onlyDaily=false){try{const p=currentProject();if(!p)return alert('No project selected.');const c=countsFor(projectData(p));const wb=buildWorkbook(p,onlyDaily);const name=`${safeName(p.name||'LinerSync')}_${onlyDaily?'Daily_AsBuilt':'CQA_Workbook'}_${today()}.xlsx`;XLSX.writeFile(wb,name);showExportResult(onlyDaily?'Daily As-Built XLSX':'CQA Workbook XLSX',name,p,c);}catch(err){$('lastExport').className='notice bad';$('lastExport').innerHTML=`<strong>Export failed</strong><span>${err.message||err}</span>`;}}
+function exportJson(){const p=currentProject();if(!p)return alert('No project selected.');const c=countsFor(projectData(p));const name=`${safeName(p.name||'LinerSync')}_RAW_${today()}.json`;downloadBlob(new Blob([JSON.stringify(p,null,2)],{type:'application/json'}),name);showExportResult('Raw JSON backup',name,p,c);}
 function render(){const sel=$('projectSelect');sel.innerHTML='';projects.forEach((p,i)=>{const o=document.createElement('option');o.value=i;o.textContent=`${p.name||'Unnamed Project'} — ${p.area||''}`;sel.appendChild(o);});updateSummary();}
-function updateSummary(){const p=currentProject();if(!p){$('counts').innerHTML='<p class="small">No projects found. Open the main app and create/save a project first.</p>';$('debug').textContent='No project.';return;}const d=projectData(p);$('counts').innerHTML=`<p class="small">${countLine(d)}</p>`;$('debug').textContent=JSON.stringify({id:p.id,name:p.name,area:p.area,material:p.material,counts:{panels:(d.panels||[]).length,seams:(d.seams||[]).length,airTests:(d.airTests||[]).length,dTests:(d.dTests||[]).length,vacuums:(d.vacuums||[]).length,rolls:(d.rolls||[]).length,dronePhotos:(d.dronePhotos||[]).length}},null,2);}
+function updateSummary(){const p=currentProject();if(!p){$('counts').innerHTML='<p class="small">No projects found. Open the main app and create/save a project first.</p>';$('warningBox').innerHTML='<div class="notice bad"><strong>No project found</strong><span>Open the main app and save a project first.</span></div>';$('debug').textContent='No project.';return;}const d=projectData(p);const c=countsFor(d);$('counts').innerHTML=countCards(c);showWarning(c);$('debug').textContent=JSON.stringify({selectedProject:p.name||'Unnamed Project',area:p.area,material:p.material,exportFileBase:safeName(p.name||'LinerSync'),counts:c,totalSavedQcItems:totalQc(c),warning:totalQc(c)===0?'Workbook will have blank QC sheets until records are saved.':'Workbook has saved QC records to export.'},null,2);}
 
 $('projectSelect').addEventListener('change',updateSummary);
 $('exportBtn').addEventListener('click',()=>exportWorkbook(false));
 $('dailyBtn').addEventListener('click',()=>exportWorkbook(true));
 $('jsonBtn').addEventListener('click',exportJson);
 
-getAllProjects().then(rows=>{projects=rows||[];$('status').textContent=`Loaded ${projects.length} project(s) from LinerSync IndexedDB.`;render();}).catch(err=>{$('status').textContent='Failed to read IndexedDB: '+err.message;});
+getAllProjects().then(rows=>{projects=rows||[];$('status').textContent=`Loaded ${projects.length} project(s) from LinerSync IndexedDB.`;render();}).catch(err=>{$('status').textContent='Failed to read IndexedDB: '+err.message;$('warningBox').innerHTML='<div class="notice bad"><strong>IndexedDB read failed</strong><span>'+err.message+'</span></div>';});
 </script>
 </body>
 </html>
