@@ -4,21 +4,30 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
   <meta name="theme-color" content="#020617" />
-  <title>LinerSync Phone Build</title>
+  <title>LinerSync Field Hub</title>
   <style>
-    html,body{margin:0;height:100%;overflow:hidden;background:#020617;font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+    html,body{margin:0;height:100%;overflow:hidden;background:#020617;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#e5e7eb}
     iframe{position:fixed;inset:0;width:100%;height:100%;border:0;background:#020617}
-    .exportFab{position:fixed;right:max(14px,env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 14px);z-index:999999;border:0;border-radius:999px;padding:16px 20px;background:#16a34a;color:white;font-weight:950;font-size:14px;box-shadow:0 12px 36px rgba(22,163,74,.45);letter-spacing:.5px;min-height:56px;min-width:132px}
-    .exportFab:active{transform:scale(.97)}
-    .note{position:fixed;left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 10px);z-index:999998;background:rgba(15,23,42,.92);color:#cbd5e1;border:1px solid rgba(148,163,184,.25);border-radius:16px;padding:12px 14px;font-size:13px;text-align:center;backdrop-filter:blur(12px);line-height:1.35}
-    .hide{display:none}
-    @media(max-width:430px){.exportFab{right:10px;top:calc(env(safe-area-inset-top,0px) + 10px);padding:14px 16px;min-width:116px;font-size:13px}}
+    .hub{position:fixed;left:max(10px,env(safe-area-inset-left,0px));right:max(10px,env(safe-area-inset-right,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 10px);z-index:999999;background:rgba(15,23,42,.94);border:1px solid rgba(148,163,184,.25);border-radius:20px;padding:10px;box-shadow:0 18px 44px rgba(0,0,0,.45);backdrop-filter:blur(14px)}
+    .row{display:grid;grid-template-columns:1.25fr 1fr 1fr 1fr;gap:8px}.btn{border:0;border-radius:16px;padding:15px 8px;color:#fff;font-weight:950;font-size:13px;letter-spacing:.2px;min-height:54px}.btn:active{transform:scale(.97)}.capture{background:#2563eb}.mythos{background:#ca8a04}.final{background:#dc2626}.exports{background:#16a34a}.mini{font-size:11px;color:#94a3b8;text-align:center;padding-top:7px}.toast{position:fixed;left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 10px);z-index:999998;background:rgba(2,6,23,.94);border:1px solid rgba(148,163,184,.25);border-radius:16px;padding:12px 14px;color:#cbd5e1;font-size:13px;text-align:center;backdrop-filter:blur(12px)}.hide{display:none}
+    @media(max-width:430px){.row{grid-template-columns:1.25fr 1fr 1fr 1fr;gap:7px}.btn{font-size:12px;padding:13px 6px;min-height:52px}.hub{padding:8px;border-radius:18px}}
   </style>
 </head>
 <body>
-  <iframe src="./index.html" title="LinerSync Main App"></iframe>
-  <button class="exportFab" onclick="location.href='./tools/export-center.html'">EXPORTS</button>
-  <div id="note" class="note">S25/S26 phone shell: main app is untouched. Green EXPORTS opens Export Center, sample workbook, and live project exporter.</div>
-  <script>setTimeout(()=>document.getElementById('note').classList.add('hide'),5500)</script>
+  <iframe id="appFrame" src="./tools/field-capture.html" title="LinerSync Field Capture"></iframe>
+  <div id="toast" class="toast">Field Hub mode: Capture is now the center. Mythos, Final, and Exports stay one tap away.</div>
+  <nav class="hub" aria-label="LinerSync field hub navigation">
+    <div class="row">
+      <button class="btn capture" onclick="go('./tools/field-capture.html')">CAPTURE</button>
+      <button class="btn mythos" onclick="go('./tools/mythos-agent.html')">MYTHOS</button>
+      <button class="btn final" onclick="go('./tools/final-package.html')">FINAL</button>
+      <button class="btn exports" onclick="go('./tools/export-center.html')">EXPORTS</button>
+    </div>
+    <div class="mini">Capture → Mythos → Final Package. Production stays moving.</div>
+  </nav>
+  <script>
+    function go(url){document.getElementById('appFrame').src=url;document.getElementById('toast').classList.add('hide')}
+    setTimeout(()=>document.getElementById('toast').classList.add('hide'),6000)
+  </script>
 </body>
 </html>
