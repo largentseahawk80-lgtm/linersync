@@ -1,88 +1,49 @@
-# LinerSync — MASTER APP
+# LINERSYNC FIELD CURRENT APP
 
-This is the master repo for the geosynthetic liner QC field app.
+Fully functional local preview repo for the LinerSync field QC application.
 
-Live app target:
+## What works
 
-https://largentseahawk80-lgtm.github.io/linersync/
+- Tap Capture for:
+  - Roll Inventory
+  - Panel Placement
+  - Seam Log
+  - Wedge Test
+  - Extrusion Log
+  - Air Test
+  - Destructive Test
+  - Repair Log
+  - Daily Log
+- Constant job data auto-fills until changed:
+  - active roll number
+  - active panel
+  - active seam
+  - liner type/thickness/width
+  - crew/weather/machine/rod lot
+- GPS/time capture
+- Last Logs viewer
+- Edit saved logs
+- Lock/approve records
+- Copy/delete/export individual records
+- As-Built tap map
+- AR Vision camera preview foundation
+- Mythos QC checks
+- CSV, JSON, KML exports
+- Local browser storage
 
-Repo:
+## Run locally
 
-https://github.com/largentseahawk80-lgtm/linersync
+```bash
+npm install
+npm run dev
+```
 
-## Do not build the app anywhere else
+Open the shown local URL.
 
-This repo is the single source of truth.
+## Deploy
 
-Do not continue active LinerSync work in these older or side repos unless a file is being copied into this repo:
+This is a Vite React app. Deploy to Netlify, Vercel, or GitHub Pages after build.
 
-- GeoCore_QC
-- GEOCORE-PRO
-- geocorepro
-- LINERSYNCV1
-- LINERSYNCV2
-- LINERSYNCV76
-- LINERSYNC-FIELD
-- LINERSYNC-FIELDV2
-- linersync-react-base
-- linersync-real-data-build
-- field-app
-- FieldMap
-
-## Why this repo is the master
-
-This version already contains the strongest field-app foundation:
-
-- IndexedDB storage
-- Legacy localStorage migration
-- Photo vault logic
-- GPS capture logic
-- Panel records
-- Seam records
-- Air tests
-- Trial welds
-- Destructive tests
-- Vacuum repairs
-- Rolls
-- Welders
-- CSV export
-- XLSX workbook export
-- Daily report generation
-- Drone photo EXIF GPS reading
-
-## Current work order
-
-1. Stabilize this master repo and live deploy.
-2. Confirm all raw QC data fields match the work templates.
-3. Fix and test exports.
-4. Build Daily As-Built from saved logs.
-5. Build Drone photo/map/as-built overlay workflow.
-6. Build Mythos QC assistant checks.
-7. Improve AR only after logs, exports, and as-built are stable.
-
-## Raw data rule
-
-No personal preset data should be hardcoded.
-
-Fields can remember values only after the user enters them.
-
-## Active QC records needed
-
-- Project setup
-- Roll inventory
-- Panel placement
-- Wedge welding
-- Weld test
-- Air test
-- Destructive test
-- Vacuum repair
-- Daily as-built
-- Drone photos / map points
-
-## Confusion prevention rule
-
-Before any future build work, confirm the repo name is:
-
-`largentseahawk80-lgtm/linersync`
-
-If the repo is not `linersync`, stop and switch back to this repo.
+```bash
+npm run build
+```
