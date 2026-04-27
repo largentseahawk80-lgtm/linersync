@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <meta name="theme-color" content="#020617" />
+  <title>LinerSync Export Workbook</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#020617;color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,sans-serif}.wrap{max-width:900px;margin:0 auto;padding:18px}.card{background:#0f172a;border:1px solid #1f2937;border-radius:18px;padding:16px;margin:12px 0;box-shadow:0 12px 40px rgba(0,0,0,.25)}h1{margin:0 0 6px;font-size:28px}.sub{color:#94a3b8;margin:0 0 14px}.btn{width:100%;border:0;border-radius:14px;padding:16px;margin:8px 0;font-weight:900;font-size:15px;color:#fff;background:#2563eb}.btn.green{background:#16a34a}.btn.gray{background:#334155}.pill{display:inline-block;background:#111827;border:1px solid #334155;border-radius:999px;padding:6px 10px;margin:4px;font-size:12px;color:#cbd5e1}.small{font-size:12px;color:#94a3b8}.row{display:grid;grid-template-columns:1fr;gap:10px}@media(min-width:700px){.row{grid-template-columns:1fr 1fr}}select,input{width:100%;background:#111827;color:#fff;border:1px solid #334155;border-radius:12px;padding:14px;font-size:16px}pre{white-space:pre-wrap;color:#cbd5e1;background:#020617;border:1px solid #1e293b;border-radius:12px;padding:12px;max-height:300px;overflow:auto}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="card">
+      <h1>LinerSync Export Workbook</h1>
+      <p class="sub">Reads the same IndexedDB project data as the main app and exports a CQA workbook.</p>
+      <div id="status" class="small">Loading projects...</div>
+    </section>
+
+    <section class="card">
+      <label class="small">Project</label>
+      <select id="projectSelect"></select>
+      <div id="counts"></div>
+      <button class="btn green" id="exportBtn">EXPORT CQA XLSX WORKBOOK</button>
+      <button class="btn" id="dailyBtn">EXPORT DAILY REPORT XLSX</button>
+      <button class="btn gray" id="jsonBtn">DOWNLOAD RAW PROJECT JSON</button>
+    </section>
+
+    <section class="card">
+      <h3>Included sheets</h3>
+      <div>
+        <span class="pill">PROJECT</span><span class="pill">PANEL PLACEMENT</span><span class="pill">ROLL INVENTORY</span><span class="pill">WEDGE WELD</span><span class="pill">WELD TEST</span><span class="pill">AIR TEST</span><span class="pill">DESTRUCTIVE</span><span class="pill">VACUUM</span><span class="pill">DAILY AS-BUILT</span><span class="pill">DRONE PHOTOS</span><span class="pill">OPEN ITEMS</span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3>Debug summary</h3>
+      <pre id="debug">No project selected.</pre>
+    </section>
+  </main>
+
+<script>
+const DBN='linersync-db', DBV=2, STORE_PROJ='projects';
+let projects=[];
+const $=id=>document.getElementById(id);
+const clean=v=>v==null?'':v;
+const yes=v=>v===true?'PASS':v===false?'FAIL':(v||'');
+const arr=v=>Array.isArray(v)?v.join(' / '):(v||'');
+const safeName=s=>String(s||'project').replace(/[^a-z0-9_-]+/gi,'_').replace(/^_+|_+$/g,'')||'project';
+const today=()=>new Date().toISOString().slice(0,10);
+
+function openDB(){return new Promise((resolve,reject)=>{const req=indexedDB.open(DBN,DBV);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);req.onupgradeneeded=()=>{};});}
+function getAllProjects(){return openDB().then(db=>new Promise((resolve,reject)=>{const tx=db.transaction(STORE_PROJ,'readonly');const req=tx.objectStore(STORE_PROJ).getAll();req.onsuccess=()=>resolve(req.result||[]);req.onerror=()=>reject(req.error);}));}
+function downloadBlob(blob,name){const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(u);}
+function aoaSheet(headers, rows){const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);ws['!cols']=headers.map(h=>({wch:Math.max(12,String(h).length+2)}));return ws;}
+function addSheet(wb,name,headers,rows){XLSX.utils.book_append_sheet(wb,aoaSheet(headers,rows),name.slice(0,31));}
+function projectData(p){return p.data||{};}
+function countLine(d){return `${(d.panels||[]).length} panels, ${(d.seams||[]).length} seams, ${(d.airTests||[]).length} air, ${(d.dTests||[]).length} DT, ${(d.vacuums||[]).length} repairs, ${(d.rolls||[]).length} rolls, ${(d.dronePhotos||[]).length} drone photos`;}
+function currentProject(){return projects[$('projectSelect').selectedIndex]||null;}
+
+function buildWorkbook(p, onlyDaily=false){
+  if(!window.XLSX) throw new Error('XLSX library did not load. Check internet connection.');
+  const d=projectData(p); const wb=XLSX.utils.book_new();
+
+  addSheet(wb,'PROJECT', ['FIELD','VALUE'], [
+    ['Project Name',clean(p.name)],['Area / Pond / Cell',clean(p.area)],['Material',clean(p.material)],['Contractor / Installer',clean(p.contractor)],['Minimum Air PSI',clean(p.specs?.minPsi)],['Maximum Air Drop',clean(p.specs?.maxDrop)],['Air Hold Minutes',clean(p.specs?.holdMin)],['DT Interval Ft',clean(p.specs?.dtInterval||500)],['Export Date',new Date().toLocaleString()]
+  ]);
+
+  const panels=d.panels||[];
+  const seams=d.seams||[];
+  const air=d.airTests||[];
+  const trials=d.trialWelds||[];
+  const ext=d.extWelds||[];
+  const dts=d.dTests||[];
+  const vac=d.vacuums||[];
+  const rolls=d.rolls||[];
+  const drone=d.dronePhotos||[];
+
+  if(!onlyDaily){
+    addSheet(wb,'PANEL PLACEMENT',['DATE','PANEL NUMBER','ROLL NUMBER','PANEL WIDTH','PANEL LENGTH','SQUARE FOOTAGE','ZONE','GPS LAT','GPS LNG','GPS ACC','COMMENTS'],panels.map(x=>[x.date,x.num,x.roll,x.w,x.l,x.area,x.zone,x.gps?.lat||x.lat||'',x.gps?.lng||x.lng||'',x.gps?.acc||'',x.comments||x.note||'']));
+    addSheet(wb,'ROLL INVENTORY',['ROLL NUMBER','MANUFACTURER','MATERIAL','THICKNESS','WIDTH','LENGTH','SQUARE FOOTAGE','STATUS','DELIVERY DATE','ASSIGNED PANELS','NOTES'],rolls.map(x=>[x.num||x.roll||x.rollNumber,x.manufacturer,x.material,x.thickness,x.w||x.width,x.l||x.length,x.area||x.sf,x.status, x.deliveryDate, arr(x.assignedPanels), x.notes||'']));
+    addSheet(wb,'WEDGE WELD',['DATE','TIME','SEAM NUMBER','SEAMER INITIALS','MACHINE NUMBER','TEMP SETTING','SPEED SETTING','LENGTH','WEATHER','GPS LAT','GPS LNG','COMMENTS'],seams.map(x=>[x.date,x.time,x.num,x.seamer,x.machine,x.temp,x.speed,x.len,x.weather,x.gps?.lat||x.lat||'',x.gps?.lng||x.lng||'',x.comments||x.note||'']));
+    addSheet(wb,'WELD TEST',['DATE','TIME','QC INITIALS','WELDER INITIALS','MACHINE NUMBER','TYPE','SEAM NUMBER','TEMP SETTING','SPEED SETTING','TEST PRESSURE','INNER PEEL','OUTER PEEL','SHEAR','RESULT','COMMENTS'],trials.map(x=>[x.date,x.time,x.qc,x.welder,x.machine,x.type,x.seam,x.temp,x.speed,x.psi||'',arr(x.iP),arr(x.oP),arr(x.sh),x.pass||x.result||'',x.comments||'']).concat(ext.map(x=>[x.date,x.time,x.qc,x.welder,x.machine,'EXTRUSION',x.seam,x.temp,x.speed,x.psi||'',arr(x.iP),arr(x.oP),arr(x.sh),x.pass||x.result||'',x.comments||''])));
+    addSheet(wb,'AIR TEST',['DATE','SEAM NUMBER','START TIME','START PRESSURE','END TIME','END PRESSURE','PRESSURE DROP','TEST MINUTES','PASS / FAIL','TESTER','WEATHER','COMMENTS'],air.map(x=>[x.date,x.seam,x.sTime,x.sPsi,x.eTime,x.ePsi,(Number(x.sPsi)-Number(x.ePsi))||'',x.minutes||x.holdMin||'',yes(x.pass),x.tester,x.weather,x.comments||'']));
+    addSheet(wb,'DESTRUCTIVE',['DATE','DT NUMBER','SEAM NUMBER','LOCATION','WELDER INITIALS','MACHINE NUMBER','TEMP SETTING','SPEED SETTING','INNER PEEL','OUTER PEEL','SHEAR','LAB SENT','RESULT','REPAIR COMPLETE','COMMENTS'],dts.map(x=>[x.date,x.dtNum,x.seam,x.loc,x.welder,x.machine,x.temp,x.speed,arr(x.iP),arr(x.oP),arr(x.sh),x.labSent?'YES':'NO',x.pass||x.result||'',x.repairComplete?'YES':'NO',x.comments||'']));
+    addSheet(wb,'VACUUM',['DATE REPAIRED','REPAIR NUMBER','SEAM LOCATION','REPAIRED BY','TYPE OF REPAIR','NUMBER OF LEAKS','RETEST','DATE ACCEPTED','TESTER','DT REF','PASS / FAIL','COMMENTS'],vac.map(x=>[x.dateRep,x.repNum,x.loc,x.by,x.type,x.leaks,x.retest,x.dateAccept,x.tester,x.dt,yes(x.pass),x.comments||'']));
+    addSheet(wb,'DRONE PHOTOS',['DATE','FILE NAME','LAT','LNG','ACCURACY','ALTITUDE','MAP POINT','NOTES'],drone.map(x=>[x.date||'',x.name||x.fileName||'',x.lat||x.gps?.lat||'',x.lng||x.gps?.lng||'',x.acc||x.gps?.acc||'',x.alt||'',x.point||'',x.notes||'']));
+  }
+
+  const dates=[...new Set([].concat(panels.map(x=>x.date),seams.map(x=>x.date),air.map(x=>x.date),dts.map(x=>x.date),vac.map(x=>x.dateRep)).filter(Boolean))].sort();
+  const dailyRows=dates.map(date=>{
+    const p2=panels.filter(x=>x.date===date), s2=seams.filter(x=>x.date===date), a2=air.filter(x=>x.date===date), dt2=dts.filter(x=>x.date===date), v2=vac.filter(x=>x.dateRep===date);
+    return [date,p2.length,p2.reduce((n,x)=>n+(Number(x.area)||0),0),s2.length,s2.reduce((n,x)=>n+(Number(x.len)||0),0),a2.length,dt2.length,v2.length,a2.filter(x=>x.pass===false).length+dt2.filter(x=>String(x.pass||x.result).toLowerCase().includes('fail')).length+v2.filter(x=>x.pass===false).length];
+  });
+  addSheet(wb,'DAILY AS-BUILT',['DATE','PANELS PLACED','SQ FT PLACED','SEAMS WELDED','FT WELDED','AIR TESTS','DESTRUCTIVE TESTS','VACUUM REPAIRS','FAILED / OPEN ITEMS'],dailyRows);
+
+  const open=[];
+  air.forEach(x=>{if(x.pass===false)open.push(['AIR TEST',x.date,x.seam,'FAIL',`Start ${x.sPsi} End ${x.ePsi}`])});
+  dts.forEach(x=>{if(String(x.pass||x.result).toLowerCase().includes('fail'))open.push(['DESTRUCTIVE',x.date,x.seam||x.dtNum,'FAIL',x.loc||''])});
+  vac.forEach(x=>{if(x.pass===false)open.push(['VACUUM',x.dateRep,x.repNum,'FAIL',x.loc||''])});
+  addSheet(wb,'OPEN ITEMS',['TYPE','DATE','ID','STATUS','LOCATION / NOTE'],open);
+  return wb;
+}
+
+function exportWorkbook(onlyDaily=false){const p=currentProject();if(!p)return alert('No project selected.');const wb=buildWorkbook(p,onlyDaily);const name=`${safeName(p.name||'LinerSync')}_${onlyDaily?'Daily_AsBuilt':'CQA_Workbook'}_${today()}.xlsx`;XLSX.writeFile(wb,name);$('status').textContent=`Created ${name}`;}
+function exportJson(){const p=currentProject();if(!p)return alert('No project selected.');downloadBlob(new Blob([JSON.stringify(p,null,2)],{type:'application/json'}),`${safeName(p.name||'LinerSync')}_RAW_${today()}.json`);}
+function render(){const sel=$('projectSelect');sel.innerHTML='';projects.forEach((p,i)=>{const o=document.createElement('option');o.value=i;o.textContent=`${p.name||'Unnamed Project'} — ${p.area||''}`;sel.appendChild(o);});updateSummary();}
+function updateSummary(){const p=currentProject();if(!p){$('counts').innerHTML='<p class="small">No projects found. Open the main app and create/save a project first.</p>';$('debug').textContent='No project.';return;}const d=projectData(p);$('counts').innerHTML=`<p class="small">${countLine(d)}</p>`;$('debug').textContent=JSON.stringify({id:p.id,name:p.name,area:p.area,material:p.material,counts:{panels:(d.panels||[]).length,seams:(d.seams||[]).length,airTests:(d.airTests||[]).length,dTests:(d.dTests||[]).length,vacuums:(d.vacuums||[]).length,rolls:(d.rolls||[]).length,dronePhotos:(d.dronePhotos||[]).length}},null,2);}
+
+$('projectSelect').addEventListener('change',updateSummary);
+$('exportBtn').addEventListener('click',()=>exportWorkbook(false));
+$('dailyBtn').addEventListener('click',()=>exportWorkbook(true));
+$('jsonBtn').addEventListener('click',exportJson);
+
+getAllProjects().then(rows=>{projects=rows||[];$('status').textContent=`Loaded ${projects.length} project(s) from LinerSync IndexedDB.`;render();}).catch(err=>{$('status').textContent='Failed to read IndexedDB: '+err.message;});
+</script>
+</body>
+</html>
