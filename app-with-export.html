@@ -8,26 +8,27 @@
   <style>
     html,body{margin:0;height:100%;overflow:hidden;background:#020617;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#e5e7eb}
     iframe{position:fixed;inset:0;width:100%;height:100%;border:0;background:#020617}
-    .hub{position:fixed;left:max(10px,env(safe-area-inset-left,0px));right:max(10px,env(safe-area-inset-right,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 10px);z-index:999999;background:rgba(15,23,42,.94);border:1px solid rgba(148,163,184,.25);border-radius:20px;padding:10px;box-shadow:0 18px 44px rgba(0,0,0,.45);backdrop-filter:blur(14px)}
-    .row{display:grid;grid-template-columns:1.25fr 1fr 1fr 1fr;gap:8px}.btn{border:0;border-radius:16px;padding:15px 8px;color:#fff;font-weight:950;font-size:13px;letter-spacing:.2px;min-height:54px}.btn:active{transform:scale(.97)}.capture{background:#2563eb}.mythos{background:#ca8a04}.final{background:#dc2626}.exports{background:#16a34a}.mini{font-size:11px;color:#94a3b8;text-align:center;padding-top:7px}.toast{position:fixed;left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 10px);z-index:999998;background:rgba(2,6,23,.94);border:1px solid rgba(148,163,184,.25);border-radius:16px;padding:12px 14px;color:#cbd5e1;font-size:13px;text-align:center;backdrop-filter:blur(12px)}.hide{display:none}
-    @media(max-width:430px){.row{grid-template-columns:1.25fr 1fr 1fr 1fr;gap:7px}.btn{font-size:12px;padding:13px 6px;min-height:52px}.hub{padding:8px;border-radius:18px}}
+    .hub{position:fixed;left:0;right:0;bottom:0;z-index:999999;background:rgba(15,23,42,.96);border-top:1px solid rgba(148,163,184,.24);padding:7px max(8px,env(safe-area-inset-right,0px)) calc(7px + env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-left,0px));box-shadow:0 -14px 34px rgba(0,0,0,.48);backdrop-filter:blur(14px);box-sizing:border-box}
+    .row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;width:100%;box-sizing:border-box}.btn{border:0;border-radius:15px;padding:12px 4px;color:#fff;font-weight:950;font-size:12px;letter-spacing:.2px;min-height:52px;line-height:1;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.btn:active{transform:scale(.97)}.ico{font-size:18px;line-height:1}.capture{background:#2563eb}.mythos{background:#ca8a04}.final{background:#dc2626}.exports{background:#16a34a}.mini{font-size:10px;color:#94a3b8;text-align:center;padding-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.toast{position:fixed;left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 10px);z-index:999998;background:rgba(2,6,23,.94);border:1px solid rgba(148,163,184,.25);border-radius:16px;padding:12px 14px;color:#cbd5e1;font-size:13px;text-align:center;backdrop-filter:blur(12px)}.hide{display:none}
+    @media(min-width:700px){.hub{left:50%;right:auto;transform:translateX(-50%);width:min(720px,100%);border:1px solid rgba(148,163,184,.24);border-bottom:0;border-radius:20px 20px 0 0}.btn{font-size:13px;min-height:54px}}
+    @media(max-width:380px){.btn{font-size:11px;min-height:50px}.ico{font-size:16px}.row{gap:5px}.hub{padding-left:6px;padding-right:6px}.mini{font-size:9px}}
   </style>
 </head>
 <body>
   <iframe id="appFrame" src="./tools/field-capture.html" title="LinerSync Field Capture"></iframe>
-  <div id="toast" class="toast">Field Hub mode: Capture is now the center. Mythos, Final, and Exports stay one tap away.</div>
+  <div id="toast" class="toast">Field Hub: Capture is home. Mythos warns. Final builds. Exports stay ready.</div>
   <nav class="hub" aria-label="LinerSync field hub navigation">
     <div class="row">
-      <button class="btn capture" onclick="go('./tools/field-capture.html')">CAPTURE</button>
-      <button class="btn mythos" onclick="go('./tools/mythos-agent.html')">MYTHOS</button>
-      <button class="btn final" onclick="go('./tools/final-package.html')">FINAL</button>
-      <button class="btn exports" onclick="go('./tools/export-center.html')">EXPORTS</button>
+      <button class="btn capture" onclick="go('./tools/field-capture.html')"><span class="ico">📷</span><span>CAPTURE</span></button>
+      <button class="btn mythos" onclick="go('./tools/mythos-agent.html')"><span class="ico">🛡️</span><span>MYTHOS</span></button>
+      <button class="btn final" onclick="go('./tools/final-package.html')"><span class="ico">✅</span><span>FINAL</span></button>
+      <button class="btn exports" onclick="go('./tools/export-center.html')"><span class="ico">⬆️</span><span>EXPORT</span></button>
     </div>
-    <div class="mini">Capture → Mythos → Final Package. Production stays moving.</div>
+    <div class="mini">Capture → Mythos → Final → Export</div>
   </nav>
   <script>
     function go(url){document.getElementById('appFrame').src=url;document.getElementById('toast').classList.add('hide')}
-    setTimeout(()=>document.getElementById('toast').classList.add('hide'),6000)
+    setTimeout(()=>document.getElementById('toast').classList.add('hide'),5200)
   </script>
 </body>
 </html>
