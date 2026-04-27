@@ -6,29 +6,72 @@
   <meta name="theme-color" content="#020617" />
   <title>LinerSync Field Hub</title>
   <style>
+    :root{--s25w:430px;--hubH:82px;--safeB:env(safe-area-inset-bottom,0px)}
     html,body{margin:0;height:100%;overflow:hidden;background:#020617;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#e5e7eb}
     iframe{position:fixed;inset:0;width:100%;height:100%;border:0;background:#020617}
-    .hub{position:fixed;left:0;right:0;bottom:0;z-index:999999;background:rgba(15,23,42,.96);border-top:1px solid rgba(148,163,184,.24);padding:7px max(8px,env(safe-area-inset-right,0px)) calc(7px + env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-left,0px));box-shadow:0 -14px 34px rgba(0,0,0,.48);backdrop-filter:blur(14px);box-sizing:border-box}
+    .hub{position:fixed;left:0;right:0;bottom:0;z-index:999999;background:rgba(15,23,42,.96);border-top:1px solid rgba(148,163,184,.24);padding:7px max(8px,env(safe-area-inset-right,0px)) calc(7px + var(--safeB)) max(8px,env(safe-area-inset-left,0px));box-shadow:0 -14px 34px rgba(0,0,0,.48);backdrop-filter:blur(14px);box-sizing:border-box}
     .row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;width:100%;box-sizing:border-box}.btn{border:0;border-radius:15px;padding:12px 4px;color:#fff;font-weight:950;font-size:12px;letter-spacing:.2px;min-height:52px;line-height:1;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.btn:active{transform:scale(.97)}.ico{font-size:18px;line-height:1}.capture{background:#2563eb}.mythos{background:#ca8a04}.final{background:#dc2626}.exports{background:#16a34a}.mini{font-size:10px;color:#94a3b8;text-align:center;padding-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.toast{position:fixed;left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 10px);z-index:999998;background:rgba(2,6,23,.94);border:1px solid rgba(148,163,184,.25);border-radius:16px;padding:12px 14px;color:#cbd5e1;font-size:13px;text-align:center;backdrop-filter:blur(12px)}.hide{display:none}
     @media(min-width:700px){.hub{left:50%;right:auto;transform:translateX(-50%);width:min(720px,100%);border:1px solid rgba(148,163,184,.24);border-bottom:0;border-radius:20px 20px 0 0}.btn{font-size:13px;min-height:54px}}
-    @media(max-width:380px){.btn{font-size:11px;min-height:50px}.ico{font-size:16px}.row{gap:5px}.hub{padding-left:6px;padding-right:6px}.mini{font-size:9px}}
+    @media(max-width:430px){.btn{font-size:11px;min-height:52px}.ico{font-size:16px}.row{gap:5px}.hub{padding-left:6px;padding-right:6px}.mini{font-size:9px}}
   </style>
 </head>
 <body>
-  <iframe id="appFrame" src="./tools/capture-menu.html" title="LinerSync Capture Menu"></iframe>
-  <div id="toast" class="toast">Field Hub: Capture menu is home. Pick QC Logs or Repair Map.</div>
+  <iframe id="appFrame" src="./tools/project-create.html" title="LinerSync S25 Ultra Field App"></iframe>
+  <div id="toast" class="toast">S25 Ultra mode loaded. Create Project is home.</div>
   <nav class="hub" aria-label="LinerSync field hub navigation">
     <div class="row">
-      <button class="btn capture" onclick="go('./tools/capture-menu.html')"><span class="ico">📷</span><span>CAPTURE</span></button>
-      <button class="btn mythos" onclick="go('./tools/mythos-agent.html')"><span class="ico">🛡️</span><span>MYTHOS</span></button>
+      <button class="btn capture" onclick="go('./tools/project-create.html')"><span class="ico">📷</span><span>START</span></button>
+      <button class="btn mythos" onclick="go('./tools/workflow-checklist.html')"><span class="ico">🛡️</span><span>FLOW</span></button>
       <button class="btn final" onclick="go('./tools/final-package.html')"><span class="ico">✅</span><span>FINAL</span></button>
-      <button class="btn exports" onclick="go('./tools/export-center.html')"><span class="ico">⬆️</span><span>EXPORT</span></button>
+      <button class="btn exports" onclick="go('./tools/office-package-builder.html')"><span class="ico">⬆️</span><span>OFFICE</span></button>
     </div>
-    <div class="mini">Capture Menu → QC Logs / Repair Map → Mythos → Final → Export</div>
+    <div class="mini">Start → Workflow → Capture → Mythos → Final → Office</div>
   </nav>
   <script>
+    const S25_CSS = `
+      :root{--s25-max:430px;--s25-pad:10px;--s25-bottom:118px;--s25-card:#0f172a;--s25-line:#334155;}
+      html,body{width:100%!important;min-height:100%!important;overflow-x:hidden!important;-webkit-text-size-adjust:100%!important;touch-action:manipulation!important;}
+      body{font-size:16px!important;line-height:1.25!important;background:#020617!important;}
+      .wrap,main.wrap{width:min(100%,var(--s25-max))!important;max-width:var(--s25-max)!important;margin:0 auto!important;padding:10px 10px var(--s25-bottom)!important;}
+      .app{width:100%!important;max-width:100%!important;}
+      .card,section.card{border-radius:16px!important;padding:12px!important;margin:9px auto!important;width:100%!important;max-width:100%!important;}
+      h1{font-size:24px!important;line-height:1.1!important;margin-bottom:6px!important;}h2{font-size:21px!important}h3{font-size:18px!important;margin:8px 0!important;}
+      .sub,.small{font-size:12px!important;line-height:1.3!important;}
+      .grid{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important;}
+      input,select,textarea,button,.btn,.nav,.tab{min-height:46px!important;font-size:16px!important;border-radius:13px!important;}
+      input,select,textarea{padding:12px!important;}
+      textarea{min-height:64px!important;}
+      button,.btn{font-weight:950!important;letter-spacing:.1px!important;}
+      .btn{padding:15px 10px!important;margin:8px 0!important;}
+      .strip{gap:7px!important;padding:7px 0!important;overflow-x:auto!important;scrollbar-width:none!important;}
+      .chip{font-size:11px!important;padding:9px 11px!important;}
+      .bottom,.footer{left:50%!important;right:auto!important;transform:translateX(-50%)!important;width:min(100%,430px)!important;max-width:430px!important;border-radius:16px 16px 0 0!important;z-index:999990!important;}
+      .bottom .nav,.footer .nav{min-height:50px!important;font-size:11px!important;padding:11px 3px!important;}
+      .box{padding:9px!important;border-radius:13px!important;}.box strong{font-size:22px!important}.box span{font-size:9px!important;}
+      .tabs{grid-template-columns:repeat(3,1fr)!important;gap:6px!important;}.tab{font-size:13px!important;padding:10px 4px!important;}
+      .notice{font-size:14px!important;padding:10px!important;border-radius:13px!important;}
+      .item,.step,.task{border-radius:14px!important;padding:10px!important;gap:8px!important;}
+      #map,.view{min-height:360px!important;height:calc(100dvh - 360px)!important;}
+      .legend{max-width:64%!important;font-size:12px!important;}.mapTools{width:78px!important;}
+      @media(max-width:390px){:root{--s25-max:390px}.wrap,main.wrap{padding-left:8px!important;padding-right:8px!important}.grid{gap:6px!important}input,select,textarea,button,.btn,.nav,.tab{font-size:15px!important}.btn{padding:14px 8px!important}.chip{font-size:10px!important;padding:8px 10px!important}}
+    `;
+    function injectS25(){
+      const frame=document.getElementById('appFrame');
+      try{
+        const doc=frame.contentDocument||frame.contentWindow.document;
+        if(!doc||!doc.head)return;
+        let style=doc.getElementById('linersync-s25-ultra-style');
+        if(!style){style=doc.createElement('style');style.id='linersync-s25-ultra-style';doc.head.appendChild(style)}
+        style.textContent=S25_CSS;
+        doc.documentElement.setAttribute('data-device','s25-ultra');
+        setTimeout(()=>{try{frame.contentWindow.dispatchEvent(new Event('resize'));}catch(e){}},120);
+      }catch(e){}
+    }
     function go(url){document.getElementById('appFrame').src=url;document.getElementById('toast').classList.add('hide')}
-    setTimeout(()=>document.getElementById('toast').classList.add('hide'),5200)
+    const frame=document.getElementById('appFrame');
+    frame.addEventListener('load',()=>{injectS25();setTimeout(injectS25,250);setTimeout(injectS25,900)});
+    window.addEventListener('resize',injectS25);
+    setTimeout(()=>document.getElementById('toast').classList.add('hide'),4200);
   </script>
 </body>
 </html>
