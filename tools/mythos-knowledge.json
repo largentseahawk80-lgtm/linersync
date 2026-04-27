@@ -1,5 +1,5 @@
 {
-  "version": "2026-04-27.1",
+  "version": "2026-04-27.2",
   "name": "Mythos Geosynthetic Liner QC Knowledge Base",
   "target_device": "Galaxy S25 Ultra / future S26 Ultra",
   "field_mode": "tap-to-capture, phone-first, offline-first",
@@ -38,15 +38,18 @@
     "logic": ["Every weld test export must show Test #1, Test #2, and Test #3.", "If any sample fails, Mythos flags the test for review/failure."]
   },
   "air_test": {
-    "minimum_start_pressure_psi": 30,
+    "default_start_pressure_psi": 40,
+    "minimum_start_pressure_psi": 40,
     "minimum_hold_minutes": 5,
     "maximum_pressure_drop_psi": 4,
+    "can_change_by_project_or_spec": true,
     "required_fields": ["date", "seam number", "start time", "starting pressure", "end time", "ending pressure", "pressure drop", "pass/fail", "tester"],
     "logic": [
       "Pressure drop equals starting pressure minus ending pressure.",
-      "Flag fail if start pressure is below 30 PSI.",
-      "Flag fail if pressure drop is greater than 4 PSI.",
-      "Flag warning if test duration is below 5 minutes.",
+      "Default field rule is 40 PSI start, 5 minute hold, max 4 PSI drop unless project/spec requires a different rule.",
+      "Flag fail if start pressure is below the active project air-test start PSI.",
+      "Flag fail if pressure drop is greater than the active max PSI drop.",
+      "Flag warning if test duration is below the active hold minutes.",
       "Flag warning if seam number or pressure fields are missing."
     ]
   },
@@ -57,7 +60,7 @@
   },
   "vacuum_repair": {
     "required_fields": ["date repaired", "repair number", "seam location", "repaired by", "type of repair", "number of leaks", "retest", "date accepted", "tester", "pass/fail"],
-    "logic": ["Any failed vacuum/recheck blocks final package until addressed.", "Repair must have location and repair type."]
+    "logic": ["Any failed vacuum/recheck is a top-priority warning until addressed.", "Repair must have location and repair type."]
   },
   "daily_asbuilt": {
     "required_daily_groups": ["panels placed", "square footage", "seams welded", "feet welded", "air tests", "destructive tests", "vacuum repairs", "drone photos", "failed/open items"],
@@ -82,7 +85,7 @@
     "Capture first panel placement.",
     "Capture first seam/wedge weld.",
     "Capture first weld test with 3 samples.",
-    "Capture first air test using 30 PSI, 5 minute hold, max 4 PSI drop.",
+    "Capture first air test using 40 PSI, 5 minute hold, max 4 PSI drop unless project/spec changes it.",
     "Capture first drone/photo point with GPS.",
     "Run Mythos Agent before final export."
   ]
