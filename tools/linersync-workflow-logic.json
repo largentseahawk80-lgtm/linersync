@@ -1,5 +1,5 @@
 {
-  "version": "2026-04-27.1",
+  "version": "2026-04-27.2",
   "name": "LinerSync Field Workflow Logic",
   "purpose": "Keep field production moving while Mythos warns, routes, and helps fix missing or bad QC data.",
   "golden_path": [
@@ -23,6 +23,10 @@
     "active_roll": "carry forward until changed or roll ends",
     "active_width": "carry forward until changed",
     "active_liner_type": "carry forward until changed",
+    "active_thickness": "carry forward until changed",
+    "air_start_pressure_psi": "default 40 PSI but editable per project/spec",
+    "air_hold_minutes": "default 5 minutes but editable per project/spec",
+    "air_max_drop_psi": "default 4 PSI but editable per project/spec",
     "machine_number": "carry forward from last seam/weld test until changed",
     "gps": "auto attach when permission and lock are available",
     "timestamp": "auto attach on every record"
@@ -63,11 +67,12 @@
     "air_test": {
       "label": "Air Test",
       "route": "field-capture.html#air",
-      "start_pressure_psi_min": 30,
+      "start_pressure_psi_min": 40,
       "hold_minutes_min": 5,
       "pressure_drop_psi_max": 4,
+      "can_change_by_project_or_spec": true,
       "required": ["seam number", "start time", "start pressure", "end time", "end pressure", "tester"],
-      "mythos_behavior": "warn for missing fields; flag fail if below pressure or over drop"
+      "mythos_behavior": "warn for missing fields; flag fail if below active pressure rule or over active drop rule"
     },
     "repair": {
       "label": "Repair / Vacuum",
@@ -77,7 +82,7 @@
     },
     "drone_photo": {
       "label": "Drone / Photo",
-      "route": "field-capture.html#panel",
+      "route": "field-capture.html#map",
       "required": ["file name or photo reference", "gps when available", "timestamp"],
       "mythos_behavior": "warn if drone/photo layer is empty or has no GPS"
     }
