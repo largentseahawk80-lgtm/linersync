@@ -1,5 +1,5 @@
 {
-  "version": "2026-04-27.2",
+  "version": "2026-04-27.3",
   "name": "Mythos Geosynthetic Liner QC Knowledge Base",
   "target_device": "Galaxy S25 Ultra / future S26 Ultra",
   "field_mode": "tap-to-capture, phone-first, offline-first",
@@ -30,12 +30,23 @@
   "wedge_weld": {
     "required_fields": ["date", "time", "seam number", "seamer initials", "machine number", "temperature setting", "speed setting"],
     "recommended_fields": ["length", "weather", "gps", "comments"],
-    "logic": ["Every seam should be traceable to panels and welding machine when possible.", "Temperature and speed settings should be recorded for production seams."]
+    "logic": ["Every wedge seam should be traceable to panels and welding machine when possible.", "Temperature and speed settings should be recorded for wedge production seams."]
+  },
+  "extrusion_weld": {
+    "required_fields": ["date", "time", "repair/seam location", "extrusion welder initials", "machine number", "preheat/grind/prep confirmation", "material rod/resin if available", "result"],
+    "recommended_fields": ["gps", "photo", "comments"],
+    "logic": ["Extrusion welding is a separate weld method from wedge welding and must be logged separately when used.", "Extrusion weld records are commonly tied to repairs, details, patches, pipe boots, corners, and tie-ins."]
   },
   "weld_test": {
     "sample_count": 3,
-    "required_fields": ["date", "time", "qc initials", "welder initials", "machine number", "weld type", "test #1", "test #2", "test #3", "result"],
-    "logic": ["Every weld test export must show Test #1, Test #2, and Test #3.", "If any sample fails, Mythos flags the test for review/failure."]
+    "types": ["Wedge Weld Test", "Extrusion Weld Test"],
+    "required_fields": ["date", "time", "qc initials", "welder initials", "machine number", "weld test type", "test #1", "test #2", "test #3", "result"],
+    "logic": [
+      "Every weld test export must show Test #1, Test #2, and Test #3.",
+      "Wedge weld test and extrusion weld test are separate test types and Mythos must preserve the type.",
+      "If any sample fails, Mythos flags the test for review/failure.",
+      "Weld tests happen before actual production welding."
+    ]
   },
   "air_test": {
     "default_start_pressure_psi": 40,
@@ -83,10 +94,10 @@
     "Create/confirm project header.",
     "Add roll inventory or active roll number.",
     "Capture first panel placement.",
-    "Capture first seam/wedge weld.",
-    "Capture first weld test with 3 samples.",
-    "Capture first air test using 40 PSI, 5 minute hold, max 4 PSI drop unless project/spec changes it.",
-    "Capture first drone/photo point with GPS.",
+    "Capture second panel before creating production seam.",
+    "Capture wedge weld test or extrusion weld test with 3 samples before production welding.",
+    "Capture first seam/wedge weld after passing weld test.",
+    "Capture first air test after seam is welded.",
     "Run Mythos Agent before final export."
   ]
 }
