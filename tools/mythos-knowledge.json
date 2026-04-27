@@ -1,0 +1,89 @@
+{
+  "version": "2026-04-27.1",
+  "name": "Mythos Geosynthetic Liner QC Knowledge Base",
+  "target_device": "Galaxy S25 Ultra / future S26 Ultra",
+  "field_mode": "tap-to-capture, phone-first, offline-first",
+  "core_rules": {
+    "project_header_required": ["project name", "area / pond / cell", "material", "date"],
+    "gps_required_when_possible": true,
+    "timestamp_required": true,
+    "comments_optional": true,
+    "installer_optional": true,
+    "spark_test_priority": "low for current build",
+    "personal_information": "do not export personal information; raw data fields only"
+  },
+  "material_defaults": {
+    "industry_standard_materials": ["HDPE", "LLDPE", "PVC", "GCL", "Geotextile"],
+    "common_liner_thickness_mil": [40, 45, 60, 80, 100],
+    "roll_fields": ["roll number", "material", "thickness", "width", "length", "square footage", "status", "assigned panels"]
+  },
+  "panel_placement": {
+    "required_fields": ["date", "panel number", "roll number", "panel width", "panel length", "square footage"],
+    "auto_fields": ["gps", "timestamp", "project", "material", "last used roll until changed", "last width until changed", "last liner type until changed"],
+    "logic": [
+      "Panel numbers must not be reused in the same project.",
+      "Roll number can stay active across multiple panels until changed.",
+      "Panel width, liner type, material, and project should carry forward until changed.",
+      "Square footage equals width multiplied by length when both are available."
+    ]
+  },
+  "wedge_weld": {
+    "required_fields": ["date", "time", "seam number", "seamer initials", "machine number", "temperature setting", "speed setting"],
+    "recommended_fields": ["length", "weather", "gps", "comments"],
+    "logic": ["Every seam should be traceable to panels and welding machine when possible.", "Temperature and speed settings should be recorded for production seams."]
+  },
+  "weld_test": {
+    "sample_count": 3,
+    "required_fields": ["date", "time", "qc initials", "welder initials", "machine number", "weld type", "test #1", "test #2", "test #3", "result"],
+    "logic": ["Every weld test export must show Test #1, Test #2, and Test #3.", "If any sample fails, Mythos flags the test for review/failure."]
+  },
+  "air_test": {
+    "minimum_start_pressure_psi": 30,
+    "minimum_hold_minutes": 5,
+    "maximum_pressure_drop_psi": 4,
+    "required_fields": ["date", "seam number", "start time", "starting pressure", "end time", "ending pressure", "pressure drop", "pass/fail", "tester"],
+    "logic": [
+      "Pressure drop equals starting pressure minus ending pressure.",
+      "Flag fail if start pressure is below 30 PSI.",
+      "Flag fail if pressure drop is greater than 4 PSI.",
+      "Flag warning if test duration is below 5 minutes.",
+      "Flag warning if seam number or pressure fields are missing."
+    ]
+  },
+  "destructive_test": {
+    "sample_count": 5,
+    "required_fields": ["date", "DT number", "seam number", "location", "welder initials", "machine number", "test #1", "test #2", "test #3", "test #4", "test #5", "result"],
+    "logic": ["Every destructive export must show Test #1 through Test #5.", "Failed DT requires repair/retest tracking.", "DT must be traceable to seam and location."]
+  },
+  "vacuum_repair": {
+    "required_fields": ["date repaired", "repair number", "seam location", "repaired by", "type of repair", "number of leaks", "retest", "date accepted", "tester", "pass/fail"],
+    "logic": ["Any failed vacuum/recheck blocks final package until addressed.", "Repair must have location and repair type."]
+  },
+  "daily_asbuilt": {
+    "required_daily_groups": ["panels placed", "square footage", "seams welded", "feet welded", "air tests", "destructive tests", "vacuum repairs", "drone photos", "failed/open items"],
+    "logic": ["Daily as-built can export blank, but Mythos should warn if no records exist for selected date."]
+  },
+  "drone_asbuilt": {
+    "required_fields": ["photo filename", "date", "gps latitude", "gps longitude"],
+    "exports": ["drone points CSV", "drone map JSON"],
+    "logic": ["Drone photos without GPS/EXIF are not useful for map layer.", "Drone GPS points support as-built map layer and repair/photo overlay."]
+  },
+  "mythos_priority_order": [
+    "failures that block final package",
+    "missing required data fields",
+    "missing daily records",
+    "missing GPS/photo data",
+    "export readiness",
+    "nice-to-have cleanup"
+  ],
+  "empty_project_first_steps": [
+    "Create/confirm project header.",
+    "Add roll inventory or active roll number.",
+    "Capture first panel placement.",
+    "Capture first seam/wedge weld.",
+    "Capture first weld test with 3 samples.",
+    "Capture first air test using 30 PSI, 5 minute hold, max 4 PSI drop.",
+    "Capture first drone/photo point with GPS.",
+    "Run Mythos Agent before final export."
+  ]
+}
