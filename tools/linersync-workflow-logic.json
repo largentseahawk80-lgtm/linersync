@@ -1,5 +1,5 @@
 {
-  "version": "2026-04-27.2",
+  "version": "2026-04-27.3",
   "name": "LinerSync Field Workflow Logic",
   "purpose": "Keep field production moving while Mythos warns, routes, and helps fix missing or bad QC data.",
   "golden_path": [
@@ -7,9 +7,10 @@
     "Capture header/defaults",
     "Capture roll inventory or active roll",
     "Capture panel placement",
-    "Capture seam/wedge weld",
-    "Capture weld test with 3 samples",
-    "Capture air test",
+    "Capture weld test with 3 samples before production seam",
+    "Capture seam/wedge weld after 2 panels are deployed",
+    "Capture air test after seam is welded",
+    "Capture destructive test with 5 samples when required",
     "Capture repair/vacuum if needed",
     "Capture drone/photo point if available",
     "Run Mythos Agent",
@@ -32,84 +33,29 @@
     "timestamp": "auto attach on every record"
   },
   "capture_types": {
-    "header": {
-      "label": "Project Header",
-      "route": "field-capture.html#header",
-      "required": ["project name", "area/cell", "material"],
-      "mythos_behavior": "warn and route to header; do not block"
-    },
-    "roll": {
-      "label": "Roll Inventory",
-      "route": "field-capture.html#roll",
-      "required": ["roll number", "material", "thickness", "width", "length", "status"],
-      "mythos_behavior": "warn if no roll inventory or no active roll"
-    },
-    "panel": {
-      "label": "Panel Placement",
-      "route": "field-capture.html#panel",
-      "required": ["panel number", "roll number", "width", "length"],
-      "auto_calculated": ["square footage"],
-      "mythos_behavior": "warn for missing panel log, missing roll link, or duplicate panel number"
-    },
-    "seam": {
-      "label": "Seam / Wedge Weld",
-      "route": "field-capture.html#seam",
-      "required": ["seam number", "seamer initials", "machine number", "temperature setting", "speed setting"],
-      "mythos_behavior": "warn when production seams are missing seam/machine/welder traceability"
-    },
-    "weld_test": {
-      "label": "Weld Test",
-      "route": "field-capture.html#weld",
-      "sample_count": 3,
-      "required": ["type", "machine", "welder", "qc", "test #1", "test #2", "test #3", "result"],
-      "mythos_behavior": "warn if no weld test; fail warning if result failed"
-    },
-    "air_test": {
-      "label": "Air Test",
-      "route": "field-capture.html#air",
-      "start_pressure_psi_min": 40,
-      "hold_minutes_min": 5,
-      "pressure_drop_psi_max": 4,
-      "can_change_by_project_or_spec": true,
-      "required": ["seam number", "start time", "start pressure", "end time", "end pressure", "tester"],
-      "mythos_behavior": "warn for missing fields; flag fail if below active pressure rule or over active drop rule"
-    },
-    "repair": {
-      "label": "Repair / Vacuum",
-      "route": "field-capture.html#repair",
-      "required": ["repair number", "location", "type", "tester", "pass/fail"],
-      "mythos_behavior": "warn for missing fields; flag failed repairs as top priority"
-    },
-    "drone_photo": {
-      "label": "Drone / Photo",
-      "route": "field-capture.html#map",
-      "required": ["file name or photo reference", "gps when available", "timestamp"],
-      "mythos_behavior": "warn if drone/photo layer is empty or has no GPS"
-    }
+    "header": {"label": "Project Header", "route": "field-capture.html#header", "required": ["project name", "area/cell", "material"], "mythos_behavior": "warn and route to header; do not block"},
+    "roll": {"label": "Roll Inventory", "route": "field-capture.html#roll", "required": ["roll number", "material", "thickness", "width", "length", "status"], "mythos_behavior": "warn if no roll inventory or no active roll"},
+    "panel": {"label": "Panel Placement", "route": "field-capture.html#panel", "required": ["panel number", "roll number", "width", "length"], "auto_calculated": ["square footage"], "mythos_behavior": "warn for missing panel log, missing roll link, or duplicate panel number"},
+    "seam": {"label": "Seam / Wedge Weld", "route": "field-capture.html#seam", "required": ["seam number", "seamer initials", "machine number", "temperature setting", "speed setting"], "sequence_rule": "production seam can be created after 2 panels are deployed and weld test has been captured", "mythos_behavior": "warn when production seams are missing seam/machine/welder traceability"},
+    "weld_test": {"label": "Weld Test", "route": "field-capture.html#weld", "sample_count": 3, "required": ["type", "machine", "welder", "qc", "test #1", "test #2", "test #3", "result"], "sequence_rule": "weld test happens before actual production welding", "mythos_behavior": "warn if no weld test before production seam; fail warning if result failed"},
+    "air_test": {"label": "Air Test", "route": "field-capture.html#air", "start_pressure_psi_min": 40, "hold_minutes_min": 5, "pressure_drop_psi_max": 4, "can_change_by_project_or_spec": true, "required": ["seam number", "start time", "start pressure", "end time", "end pressure", "tester"], "sequence_rule": "air test happens after seam is welded", "mythos_behavior": "warn for missing fields; flag fail if below active pressure rule or over active drop rule"},
+    "destructive_test": {"label": "Destructive Test", "route": "destructive-test.html", "sample_count": 5, "required": ["DT number", "seam number", "location", "welder", "machine", "qc", "test #1", "test #2", "test #3", "test #4", "test #5", "result"], "mythos_behavior": "warn if no destructive tests have been logged; fail warning if result failed; route to dedicated DT capture page"},
+    "repair": {"label": "Repair / Vacuum", "route": "field-capture.html#repair", "required": ["repair number", "location", "type", "tester", "pass/fail"], "mythos_behavior": "warn for missing fields; flag failed repairs as top priority"},
+    "drone_photo": {"label": "Drone / Photo", "route": "field-capture.html#map", "required": ["file name or photo reference", "gps when available", "timestamp"], "mythos_behavior": "warn if drone/photo layer is empty or has no GPS"}
   },
   "priority_order": [
     "failed air, destructive, or repair records",
     "missing project header/defaults",
     "missing active roll or roll inventory",
     "missing panel placement records",
-    "missing seam/wedge weld records",
-    "missing weld tests",
-    "missing air tests",
+    "missing weld test before production seam",
+    "missing seam/wedge weld after 2 panels and weld test",
+    "missing air tests after seam exists",
+    "missing destructive tests when required",
     "missing daily records for selected date",
     "missing drone/photo GPS",
     "nice-to-have cleanup"
   ],
-  "final_package_flow": {
-    "simple_buttons": ["CAPTURE", "RUN MYTHOS", "BUILD OFFICE PACKAGE", "MORE TOOLS"],
-    "build_office_package_should_open": ["full CQA workbook", "daily as-built", "drone as-built", "photo manifest", "raw backup"],
-    "status_card": ["project", "status", "today records", "open issues"]
-  },
-  "field_ui_principles": [
-    "one obvious next action",
-    "large buttons for gloves and phone use",
-    "capture first, export later",
-    "warnings should be tappable and route to fix",
-    "no personal info in exports",
-    "raw QC data only"
-  ]
+  "final_package_flow": {"simple_buttons": ["CAPTURE", "RUN MYTHOS", "BUILD OFFICE PACKAGE", "MORE TOOLS"], "build_office_package_should_open": ["full CQA workbook", "daily as-built", "drone as-built", "photo manifest", "raw backup"], "status_card": ["project", "status", "today records", "open issues"]},
+  "field_ui_principles": ["one obvious next action", "large buttons for gloves and phone use", "capture first, export later", "warnings should be tappable and route to fix", "no personal info in exports", "raw QC data only"]
 }
