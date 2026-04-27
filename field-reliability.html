@@ -6,14 +6,14 @@
 <title>LinerSync Field Reliability</title>
 <meta name="theme-color" content="#07111f">
 <style>
-:root{--bg:#07111f;--card:#101c2e;--card2:#14243a;--line:#28435f;--text:#eef6ff;--muted:#9bb4cc;--blue:#2f8cff;--green:#22c55e;--amber:#f59e0b;--red:#ef4444;--gray:#64748b}*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif}body{overflow:hidden}.app{height:100%;display:grid;grid-template-rows:auto 1fr auto}.top{padding:12px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#0d1b2f,#07111f)}.title{font-weight:900;font-size:24px;letter-spacing:.2px}.sub{color:var(--muted);font-size:12px;margin-top:3px}.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}.rowAuto{display:grid;grid-template-columns:1fr auto;gap:8px}button,input,select,textarea{width:100%;border-radius:14px;border:1px solid var(--line);font:inherit;font-weight:750;min-height:50px}input,select,textarea{background:#0b1728;color:var(--text);padding:12px}textarea{min-height:86px;resize:vertical}.btn{background:var(--blue);color:white}.btn2{background:#0b1728;color:var(--text)}.good{background:var(--green);color:white}.warn{background:var(--amber);color:#111827}.danger{background:var(--red);color:white}.ghost{background:#17263b;color:var(--text)}.main{overflow:auto;padding:12px 12px 90px}.card{background:linear-gradient(180deg,var(--card),#0b1728);border:1px solid var(--line);border-radius:18px;padding:12px;margin-bottom:12px;box-shadow:0 10px 25px rgba(0,0,0,.22)}.section{font-size:12px;font-weight:950;color:#75b7ff;text-transform:uppercase;letter-spacing:1px;margin:4px 0 10px}.pillbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.pill{border:1px solid var(--line);border-radius:999px;padding:7px 10px;background:#0b1728;color:var(--muted);font-size:12px;font-weight:850}.pill.good{background:rgba(34,197,94,.15);color:#86efac;border-color:#14532d}.pill.bad{background:rgba(239,68,68,.15);color:#fecaca;border-color:#7f1d1d}.pill.warn{background:rgba(245,158,11,.15);color:#fde68a;border-color:#78350f}.tabs{position:fixed;bottom:0;left:0;right:0;background:#07111f;border-top:1px solid var(--line);padding:8px;display:grid;grid-template-columns:repeat(4,1fr);gap:7px}.tab{font-size:12px;min-height:54px;background:#0b1728;color:var(--muted)}.tab.active{background:var(--blue);color:white}.hide{display:none}.log{border:1px solid var(--line);background:#0b1728;border-radius:14px;padding:10px;margin-top:8px}.logTop{display:flex;justify-content:space-between;gap:8px;font-weight:950}.small{font-size:12px;color:var(--muted);line-height:1.35}.red{color:#fca5a5}.greenText{color:#86efac}.yellow{color:#fde68a}.photo{max-width:100%;border-radius:12px;border:1px solid var(--line);margin-top:8px}label{display:block;color:var(--muted);font-size:12px;font-weight:850;margin:10px 0 5px}.empty{color:var(--muted);text-align:center;padding:20px}.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}hr{border:none;border-top:1px solid var(--line);margin:12px 0}
+:root{--bg:#07111f;--card:#101c2e;--line:#28435f;--text:#eef6ff;--muted:#9bb4cc;--blue:#2f8cff;--green:#22c55e;--amber:#f59e0b;--red:#ef4444}*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif}body{overflow:hidden}.app{height:100%;display:grid;grid-template-rows:auto 1fr auto}.top{padding:12px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#0d1b2f,#07111f)}.title{font-weight:900;font-size:24px}.sub{color:var(--muted);font-size:12px;margin-top:3px}.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}button,input,select,textarea{width:100%;border-radius:14px;border:1px solid var(--line);font:inherit;font-weight:800;min-height:50px}input,select,textarea{background:#0b1728;color:var(--text);padding:12px}textarea{min-height:86px;resize:vertical}.btn{background:var(--blue);color:white}.btn2{background:#0b1728;color:var(--text)}.good{background:var(--green);color:white}.warn{background:var(--amber);color:#111827}.danger{background:var(--red);color:white}.main{overflow:auto;padding:12px 12px 158px}.card{background:linear-gradient(180deg,var(--card),#0b1728);border:1px solid var(--line);border-radius:18px;padding:12px;margin-bottom:12px;box-shadow:0 10px 25px rgba(0,0,0,.22)}.section{font-size:12px;font-weight:950;color:#75b7ff;text-transform:uppercase;letter-spacing:1px;margin:4px 0 10px}.pillbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.pill{border:1px solid var(--line);border-radius:999px;padding:7px 10px;background:#0b1728;color:var(--muted);font-size:12px;font-weight:850}.pill.good{background:rgba(34,197,94,.15);color:#86efac;border-color:#14532d}.pill.bad{background:rgba(239,68,68,.15);color:#fecaca;border-color:#7f1d1d}.pill.warn{background:rgba(245,158,11,.15);color:#fde68a;border-color:#78350f}.tabs{position:fixed;bottom:0;left:0;right:0;background:#07111f;border-top:1px solid var(--line);padding:8px;display:grid;grid-template-columns:repeat(4,1fr);gap:7px}.tab{font-size:12px;min-height:54px;background:#0b1728;color:var(--muted)}.tab.active{background:var(--blue);color:white}.tapDock{position:fixed;left:8px;right:8px;bottom:70px;z-index:20;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;background:rgba(7,17,31,.92);border:1px solid var(--line);border-radius:18px;padding:8px;box-shadow:0 12px 30px rgba(0,0,0,.45);backdrop-filter:blur(8px)}.tapDock button{min-height:56px}.tapMain{font-size:16px;background:var(--green);color:#fff}.hide{display:none}.log{border:1px solid var(--line);background:#0b1728;border-radius:14px;padding:10px;margin-top:8px}.logTop{display:flex;justify-content:space-between;gap:8px;font-weight:950}.small{font-size:12px;color:var(--muted);line-height:1.35}.red{color:#fca5a5}.greenText{color:#86efac}.yellow{color:#fde68a}.photo{max-width:100%;border-radius:12px;border:1px solid var(--line);margin-top:8px}label{display:block;color:var(--muted);font-size:12px;font-weight:850;margin:10px 0 5px}.empty{color:var(--muted);text-align:center;padding:20px}.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
 </style>
 </head>
 <body>
 <div class="app">
   <div class="top">
     <div class="title">LinerSync Field Reliability</div>
-    <div class="sub">Repair-first logger: GPS • time • photo • latest logs • CSV • KML</div>
+    <div class="sub">Tap-to-capture is now on every page</div>
     <div class="pillbar">
       <span class="pill" id="projectPill">Project: none</span>
       <span class="pill" id="gpsPill">GPS: acquiring</span>
@@ -23,94 +23,34 @@
 
   <main class="main">
     <section id="screenHome">
-      <div class="card">
-        <div class="section">Best field action</div>
-        <button class="btn" onclick="show('repair')">+ TAP REPAIR</button>
-        <div class="row" style="margin-top:8px">
-          <button class="btn2" onclick="show('project')">Project</button>
-          <button class="btn2" onclick="show('export')">Export</button>
-        </div>
-      </div>
-      <div class="card">
-        <div class="section">Latest Logs</div>
-        <div id="latestLogs"></div>
-      </div>
-      <div class="card">
-        <div class="section">Today Status</div>
-        <div id="todayStatus" class="pillbar"></div>
-      </div>
+      <div class="card"><div class="section">Best field action</div><button class="tapMain" onclick="tapCapture()">+ TAP TO CAPTURE REPAIR</button><div class="row" style="margin-top:8px"><button class="btn2" onclick="show('project')">Project</button><button class="btn2" onclick="show('export')">Export</button></div></div>
+      <div class="card"><div class="section">Latest Logs</div><div id="latestLogs"></div></div>
+      <div class="card"><div class="section">Today Status</div><div id="todayStatus" class="pillbar"></div></div>
     </section>
 
     <section id="screenProject" class="hide">
-      <div class="card">
-        <div class="section">Open Existing Project</div>
-        <select id="projectSelect"></select>
-        <button class="btn" style="margin-top:8px" onclick="openSelectedProject()">Open Project</button>
-        <p class="small">Open Project loads saved data. New Project creates a clean job. They are not the same action.</p>
-      </div>
-      <div class="card">
-        <div class="section">New Project</div>
-        <label>Project name</label><input id="newProjectName" placeholder="Example: Clayton Cell 1">
-        <label>Area / Pond / Lagoon</label><input id="newProjectArea" placeholder="Example: Pond 3 / East Slope">
-        <label>Technician</label><input id="techName" placeholder="QC tech name">
-        <div class="row" style="margin-top:8px">
-          <select id="material"><option>60-mil HDPE Textured</option><option>60-mil HDPE Smooth</option><option>80-mil HDPE Textured</option><option>80-mil HDPE Smooth</option><option>40-mil LLDPE</option><option>60-mil LLDPE</option></select>
-          <input id="defaultWidth" type="number" placeholder="Width ft">
-        </div>
-        <button class="good" style="margin-top:8px" onclick="createProject()">Create Clean Project</button>
-      </div>
-      <div class="card">
-        <div class="section">Active Project</div>
-        <div id="projectDetails" class="small"></div>
-      </div>
+      <div class="card"><div class="section">Open Existing Project</div><select id="projectSelect"></select><button class="btn" style="margin-top:8px" onclick="openSelectedProject()">Open Project</button><p class="small">Open Project loads saved data. New Project creates a clean job.</p></div>
+      <div class="card"><div class="section">New Project</div><label>Project name</label><input id="newProjectName" placeholder="Example: Clayton Cell 1"><label>Area / Pond / Lagoon</label><input id="newProjectArea" placeholder="Example: Pond 3 / East Slope"><label>Technician</label><input id="techName" placeholder="QC tech name"><div class="row" style="margin-top:8px"><select id="material"><option>60-mil HDPE Textured</option><option>60-mil HDPE Smooth</option><option>80-mil HDPE Textured</option><option>80-mil HDPE Smooth</option><option>40-mil LLDPE</option><option>60-mil LLDPE</option></select><input id="defaultWidth" type="number" placeholder="Width ft"></div><button class="good" style="margin-top:8px" onclick="createProject()">Create Clean Project</button></div>
+      <div class="card"><div class="section">Active Project</div><div id="projectDetails" class="small"></div></div>
     </section>
 
     <section id="screenRepair" class="hide">
-      <div class="card">
-        <div class="section">Fast Repair Capture</div>
-        <div class="row">
-          <select id="repairType"><option>Patch</option><option>Bead</option><option>Burn Out</option><option>Extrusion</option><option>Cap Strip</option><option>Wrinkle Cutout</option><option>Destructive Sample Patch</option><option>Other</option></select>
-          <select id="repairStatus"><option>Open / Needs Verification</option><option>Verified Pass</option><option>Failed / Needs Rework</option></select>
-        </div>
-        <label>Location / station / area</label><input id="repairLoc" placeholder="Example: East slope, near seam S-12">
-        <div class="row">
-          <input id="eastAT" type="number" placeholder="East AT ft">
-          <input id="southAT" type="number" placeholder="South AT ft">
-        </div>
-        <label>Notes</label><textarea id="repairNotes" placeholder="What was fixed, size, material used, verification notes"></textarea>
-        <label>Photo</label><input id="repairPhoto" type="file" accept="image/*" capture="environment">
-        <div class="pillbar"><span class="pill" id="repairGpsPreview">GPS waiting</span><span class="pill" id="repairTimePreview"></span></div>
-        <button class="good" style="margin-top:12px" onclick="saveRepair()">SAVE REPAIR NOW</button>
-        <button class="btn2" style="margin-top:8px" onclick="clearRepairForm()">Clear Form</button>
-      </div>
+      <div class="card"><div class="section">Fast Repair Capture</div><div class="row"><select id="repairType"><option>Patch</option><option>Bead</option><option>Burn Out</option><option>Extrusion</option><option>Cap Strip</option><option>Wrinkle Cutout</option><option>Destructive Sample Patch</option><option>Other</option></select><select id="repairStatus"><option>Open / Needs Verification</option><option>Verified Pass</option><option>Failed / Needs Rework</option></select></div><label>Location / station / area</label><input id="repairLoc" placeholder="Example: East slope, near seam S-12"><div class="row"><input id="eastAT" type="number" placeholder="East AT ft"><input id="southAT" type="number" placeholder="South AT ft"></div><label>Notes</label><textarea id="repairNotes" placeholder="What was fixed, size, material used, verification notes"></textarea><label>Photo</label><input id="repairPhoto" type="file" accept="image/*" capture="environment"><div class="pillbar"><span class="pill" id="repairGpsPreview">GPS waiting</span><span class="pill" id="repairTimePreview"></span></div><button class="good" style="margin-top:12px" onclick="saveRepair()">SAVE REPAIR NOW</button><button class="btn2" style="margin-top:8px" onclick="clearRepairForm()">Clear Form</button></div>
     </section>
 
-    <section id="screenLogs" class="hide">
-      <div class="card">
-        <div class="section">All Repair Logs</div>
-        <div id="allLogs"></div>
-      </div>
-    </section>
+    <section id="screenLogs" class="hide"><div class="card"><div class="section">All Repair Logs</div><div id="allLogs"></div></div></section>
 
     <section id="screenExport" class="hide">
-      <div class="card">
-        <div class="section">Exports</div>
-        <div class="row">
-          <button class="btn" onclick="exportCSV()">Download CSV</button>
-          <button class="btn" onclick="exportKML()">Download KML</button>
-        </div>
-        <div class="row" style="margin-top:8px">
-          <button class="btn2" onclick="exportJSON()">Backup JSON</button>
-          <button class="btn2" onclick="copySummary()">Copy Summary</button>
-        </div>
-        <p class="small">CSV is for Excel. KML opens in Google Earth. JSON is the safety backup.</p>
-      </div>
-      <div class="card">
-        <div class="section">Export Check</div>
-        <div id="exportCheck" class="small"></div>
-      </div>
+      <div class="card"><div class="section">Exports</div><div class="row"><button class="btn" onclick="exportCSV()">Download CSV</button><button class="btn" onclick="exportKML()">Download KML</button></div><div class="row" style="margin-top:8px"><button class="btn2" onclick="exportJSON()">Backup JSON</button><button class="btn2" onclick="copySummary()">Copy Summary</button></div><p class="small">CSV is for Excel. KML opens in Google Earth. JSON is the safety backup.</p></div>
+      <div class="card"><div class="section">Export Check</div><div id="exportCheck" class="small"></div></div>
     </section>
   </main>
+
+  <div class="tapDock">
+    <button class="tapMain" onclick="tapCapture()">+ TAP TO CAPTURE</button>
+    <button class="btn2" onclick="show('logs')">Latest Logs</button>
+    <button class="btn2" onclick="quickCapture()">Quick Save</button>
+  </div>
 
   <nav class="tabs">
     <button class="tab active" id="tabHome" onclick="show('home')">Home</button>
@@ -120,53 +60,29 @@
   </nav>
 </div>
 <script>
-const KEY='linersync-field-reliability-v1';
-const LEGACY_KEYS=['ls9','linersync-field-ready-v1'];
-let state=load();
-let activeId=state.activeId||null;
-let gps={lat:null,lng:null,acc:null,status:'searching'};
-let currentScreen='home';
-
+const KEY='linersync-field-reliability-v2';
+const OLD_KEY='linersync-field-reliability-v1';
+let state=load();let activeId=state.activeId||null;let gps={lat:null,lng:null,acc:null,status:'searching'};let currentScreen='home';
 function uid(){return Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8)}
-function nowISO(){return new Date().toISOString()}
-function nowLocal(){return new Date().toLocaleString([], {year:'numeric',month:'2-digit',day:'2-digit',hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true})}
-function todayKey(){return new Date().toISOString().slice(0,10)}
-function load(){try{return JSON.parse(localStorage.getItem(KEY))||{projects:[],activeId:null}}catch(e){return {projects:[],activeId:null}}}
-function save(){state.activeId=activeId;localStorage.setItem(KEY,JSON.stringify(state));render();}
-function project(){return state.projects.find(p=>p.id===activeId)||null}
-function ensureData(p){p.repairs=p.repairs||[];p.panels=p.panels||[];p.seams=p.seams||[];p.tests=p.tests||[];return p}
-function esc(s){return String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
-function csv(s){s=String(s??'');return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}
-function download(name,content,type){const b=new Blob([content],{type});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),800)}
-
-function startGPS(){if(!navigator.geolocation){gps.status='unsupported';render();return}navigator.geolocation.watchPosition(p=>{gps={lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy,status:'locked'};render();},e=>{gps.status=e.code===1?'denied':'error';render();},{enableHighAccuracy:true,maximumAge:1000,timeout:15000})}
-function gpsStamp(){return gps.lat?{lat:+gps.lat.toFixed(7),lng:+gps.lng.toFixed(7),acc:Math.round(gps.acc||0),source:'phone'}:{lat:null,lng:null,acc:null,source:'none'}}
-
-function show(name){currentScreen=name;['home','project','repair','logs','export'].forEach(s=>{document.getElementById('screen'+cap(s)).classList.toggle('hide',s!==name);const t=document.getElementById('tab'+cap(s));if(t)t.classList.toggle('active',s===name)});render()}
-function cap(s){return s.charAt(0).toUpperCase()+s.slice(1)}
-
-function createProject(){const name=document.getElementById('newProjectName').value.trim();if(!name){alert('Type a project name first.');return}const p={id:uid(),name,area:document.getElementById('newProjectArea').value.trim(),tech:document.getElementById('techName').value.trim(),material:document.getElementById('material').value,width:document.getElementById('defaultWidth').value,createdAt:nowISO(),repairs:[],panels:[],seams:[],tests:[]};state.projects.push(p);activeId=p.id;document.getElementById('newProjectName').value='';document.getElementById('newProjectArea').value='';save();show('home')}
-function openSelectedProject(){const id=document.getElementById('projectSelect').value;if(!id){alert('No saved project selected.');return}activeId=id;save();show('home')}
-
+function nowISO(){return new Date().toISOString()}function nowLocal(){return new Date().toLocaleString([], {year:'numeric',month:'2-digit',day:'2-digit',hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true})}function todayKey(){return new Date().toISOString().slice(0,10)}
+function load(){try{return JSON.parse(localStorage.getItem(KEY))||JSON.parse(localStorage.getItem(OLD_KEY))||{projects:[],activeId:null}}catch(e){return {projects:[],activeId:null}}}
+function save(){state.activeId=activeId;localStorage.setItem(KEY,JSON.stringify(state));render()}function project(){return state.projects.find(p=>p.id===activeId)||null}function ensureData(p){p.repairs=p.repairs||[];p.panels=p.panels||[];p.seams=p.seams||[];p.tests=p.tests||[];return p}
+function esc(s){return String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}function csv(s){s=String(s??'');return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}function download(name,content,type){const b=new Blob([content],{type});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),800)}
+function startGPS(){if(!navigator.geolocation){gps.status='unsupported';render();return}navigator.geolocation.watchPosition(p=>{gps={lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy,status:'locked'};render()},e=>{gps.status=e.code===1?'denied':'error';render()},{enableHighAccuracy:true,maximumAge:1000,timeout:15000})}function gpsStamp(){return gps.lat?{lat:+gps.lat.toFixed(7),lng:+gps.lng.toFixed(7),acc:Math.round(gps.acc||0),source:'phone'}:{lat:null,lng:null,acc:null,source:'none'}}
+function show(name){currentScreen=name;['home','project','repair','logs','export'].forEach(s=>{document.getElementById('screen'+cap(s)).classList.toggle('hide',s!==name);const t=document.getElementById('tab'+cap(s));if(t)t.classList.toggle('active',s===name)});render()}function cap(s){return s.charAt(0).toUpperCase()+s.slice(1)}
+function tapCapture(){const p=project();if(!p){alert('Create or open a project first.');show('project');return}show('repair');setTimeout(()=>document.getElementById('repairLoc')?.focus(),150)}
+function quickCapture(){const p=project();if(!p){alert('Create or open a project first.');show('project');return}ensureData(p);const stamp=gpsStamp();const rec={id:uid(),kind:'repair',repairId:'R-'+String(p.repairs.length+1).padStart(3,'0'),type:'Patch',status:'Open / Needs Verification',location:'Quick tap repair',eastAT:'',southAT:'',notes:'Quick captured from tap button. Edit details later.',date:todayKey(),time:nowLocal(),timestamp:nowISO(),tech:p.tech||'',gps:stamp,photo:null,complete:!!stamp.lat,verified:false};p.repairs.unshift(rec);save();show('home')}
+function createProject(){const name=document.getElementById('newProjectName').value.trim();if(!name){alert('Type a project name first.');return}const p={id:uid(),name,area:document.getElementById('newProjectArea').value.trim(),tech:document.getElementById('techName').value.trim(),material:document.getElementById('material').value,width:document.getElementById('defaultWidth').value,createdAt:nowISO(),repairs:[],panels:[],seams:[],tests:[]};state.projects.push(p);activeId=p.id;['newProjectName','newProjectArea'].forEach(id=>document.getElementById(id).value='');save();show('home')}function openSelectedProject(){const id=document.getElementById('projectSelect').value;if(!id){alert('No saved project selected.');return}activeId=id;save();show('home')}
 async function readPhoto(input){const f=input.files&&input.files[0];if(!f)return null;return new Promise(resolve=>{const r=new FileReader();r.onload=e=>{const img=new Image();img.onload=()=>{const max=900;let w=img.width,h=img.height;if(Math.max(w,h)>max){const sc=max/Math.max(w,h);w=Math.round(w*sc);h=Math.round(h*sc)}const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);resolve({name:f.name,type:f.type||'image/jpeg',data:c.toDataURL('image/jpeg',.72)})};img.onerror=()=>resolve(null);img.src=e.target.result};r.onerror=()=>resolve(null);r.readAsDataURL(f)})}
-async function saveRepair(){const p=project();if(!p){alert('Create or open a project first.');show('project');return}ensureData(p);const stamp=gpsStamp();const photo=await readPhoto(document.getElementById('repairPhoto'));const rec={id:uid(),kind:'repair',repairId:'R-'+String(p.repairs.length+1).padStart(3,'0'),type:document.getElementById('repairType').value,status:document.getElementById('repairStatus').value,location:document.getElementById('repairLoc').value.trim(),eastAT:document.getElementById('eastAT').value,southAT:document.getElementById('southAT').value,notes:document.getElementById('repairNotes').value.trim(),date:todayKey(),time:nowLocal(),timestamp:nowISO(),tech:p.tech||'',gps:stamp,photo,complete:!!stamp.lat,verified:document.getElementById('repairStatus').value==='Verified Pass'};p.repairs.unshift(rec);clearRepairForm();save();show('home')}
-function clearRepairForm(){['repairLoc','eastAT','southAT','repairNotes'].forEach(id=>document.getElementById(id).value='');document.getElementById('repairPhoto').value=''}
-
-function render(){const p=project();document.getElementById('projectPill').textContent='Project: '+(p?p.name:'none');document.getElementById('projectPill').className='pill '+(p?'good':'bad');let gtxt=gps.status==='locked'?'GPS: ±'+Math.round(gps.acc||0)+'m':'GPS: '+gps.status;document.getElementById('gpsPill').textContent=gtxt;document.getElementById('gpsPill').className='pill '+(gps.status==='locked'?'good':'bad');document.getElementById('repairGpsPreview').textContent=gps.status==='locked'?('GPS '+gps.lat.toFixed(6)+', '+gps.lng.toFixed(6)+' ±'+Math.round(gps.acc||0)+'m'):'GPS not ready - will save red';document.getElementById('repairGpsPreview').className='pill '+(gps.status==='locked'?'good':'bad');document.getElementById('repairTimePreview').textContent=nowLocal();renderProjects();renderLogs();renderStatus();renderExportCheck()}
+async function saveRepair(){const p=project();if(!p){alert('Create or open a project first.');show('project');return}ensureData(p);const stamp=gpsStamp();const photo=await readPhoto(document.getElementById('repairPhoto'));const rec={id:uid(),kind:'repair',repairId:'R-'+String(p.repairs.length+1).padStart(3,'0'),type:document.getElementById('repairType').value,status:document.getElementById('repairStatus').value,location:document.getElementById('repairLoc').value.trim(),eastAT:document.getElementById('eastAT').value,southAT:document.getElementById('southAT').value,notes:document.getElementById('repairNotes').value.trim(),date:todayKey(),time:nowLocal(),timestamp:nowISO(),tech:p.tech||'',gps:stamp,photo,complete:!!stamp.lat,verified:document.getElementById('repairStatus').value==='Verified Pass'};p.repairs.unshift(rec);clearRepairForm();save();show('home')}function clearRepairForm(){['repairLoc','eastAT','southAT','repairNotes'].forEach(id=>document.getElementById(id).value='');document.getElementById('repairPhoto').value=''}
+function render(){const p=project();document.getElementById('projectPill').textContent='Project: '+(p?p.name:'none');document.getElementById('projectPill').className='pill '+(p?'good':'bad');document.getElementById('gpsPill').textContent=gps.status==='locked'?'GPS: ±'+Math.round(gps.acc||0)+'m':'GPS: '+gps.status;document.getElementById('gpsPill').className='pill '+(gps.status==='locked'?'good':'bad');document.getElementById('repairGpsPreview').textContent=gps.status==='locked'?('GPS '+gps.lat.toFixed(6)+', '+gps.lng.toFixed(6)+' ±'+Math.round(gps.acc||0)+'m'):'GPS not ready - will save red';document.getElementById('repairGpsPreview').className='pill '+(gps.status==='locked'?'good':'bad');document.getElementById('repairTimePreview').textContent=nowLocal();renderProjects();renderLogs();renderStatus();renderExportCheck()}
 function renderProjects(){const sel=document.getElementById('projectSelect');sel.innerHTML='';state.projects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name+' — '+(p.repairs?.length||0)+' repairs';if(p.id===activeId)o.selected=true;sel.appendChild(o)});const p=project();document.getElementById('projectDetails').innerHTML=p?`<b>${esc(p.name)}</b><br>Area: ${esc(p.area||'')}<br>Tech: ${esc(p.tech||'')}<br>Material: ${esc(p.material||'')}<br>Repairs: ${(p.repairs||[]).length}<br><span class="mono">ID: ${p.id}</span>`:'No active project.'}
-function logHTML(r,i){const gpsOk=r.gps&&r.gps.lat;const verified=r.status==='Verified Pass';return `<div class="log"><div class="logTop"><span>${esc(r.repairId)} — ${esc(r.type)}</span><span class="${verified?'greenText':gpsOk?'yellow':'red'}">${verified?'VERIFIED':gpsOk?'OPEN':'NO GPS'}</span></div><div class="small">${esc(r.time)}<br>${esc(r.location||'No location note')}<br>${gpsOk?('GPS: '+r.gps.lat+', '+r.gps.lng+' ±'+r.gps.acc+'m'):'GPS missing'}${r.eastAT?'<br>East AT: '+esc(r.eastAT)+' ft':''}${r.southAT?'<br>South AT: '+esc(r.southAT)+' ft':''}${r.notes?'<br>Notes: '+esc(r.notes):''}</div>${r.photo?'<img class="photo" src="'+r.photo.data+'">':''}</div>`}
-function renderLogs(){const p=project();const reps=p?(p.repairs||[]):[];document.getElementById('latestLogs').innerHTML=reps.length?reps.slice(0,5).map(logHTML).join(''):'<div class="empty">No logs yet. Tap Repair and save one.</div>';document.getElementById('allLogs').innerHTML=reps.length?reps.map(logHTML).join(''):'<div class="empty">No repair logs saved.</div>'}
+function logHTML(r){const gpsOk=r.gps&&r.gps.lat;const verified=r.status==='Verified Pass';return `<div class="log"><div class="logTop"><span>${esc(r.repairId)} — ${esc(r.type)}</span><span class="${verified?'greenText':gpsOk?'yellow':'red'}">${verified?'VERIFIED':gpsOk?'OPEN':'NO GPS'}</span></div><div class="small">${esc(r.time)}<br>${esc(r.location||'No location note')}<br>${gpsOk?('GPS: '+r.gps.lat+', '+r.gps.lng+' ±'+r.gps.acc+'m'):'GPS missing'}${r.eastAT?'<br>East AT: '+esc(r.eastAT)+' ft':''}${r.southAT?'<br>South AT: '+esc(r.southAT)+' ft':''}${r.notes?'<br>Notes: '+esc(r.notes):''}</div>${r.photo?'<img class="photo" src="'+r.photo.data+'">':''}</div>`}
+function renderLogs(){const p=project();const reps=p?(p.repairs||[]):[];document.getElementById('latestLogs').innerHTML=reps.length?reps.slice(0,5).map(logHTML).join(''):'<div class="empty">No logs yet. Tap to capture and save one.</div>';document.getElementById('allLogs').innerHTML=reps.length?reps.map(logHTML).join(''):'<div class="empty">No repair logs saved.</div>'}
 function renderStatus(){const p=project();const reps=p?(p.repairs||[]):[];const today=reps.filter(r=>r.date===todayKey());const open=reps.filter(r=>r.status!=='Verified Pass');const nogps=reps.filter(r=>!(r.gps&&r.gps.lat));document.getElementById('todayStatus').innerHTML=`<span class="pill good">Today: ${today.length}</span><span class="pill warn">Open: ${open.length}</span><span class="pill ${nogps.length?'bad':'good'}">Missing GPS: ${nogps.length}</span><span class="pill">Total repairs: ${reps.length}</span>`}
 function renderExportCheck(){const p=project();if(!p){document.getElementById('exportCheck').innerHTML='No active project.';return}const reps=p.repairs||[];const nogps=reps.filter(r=>!(r.gps&&r.gps.lat)).length;const open=reps.filter(r=>r.status!=='Verified Pass').length;document.getElementById('exportCheck').innerHTML=`Project: <b>${esc(p.name)}</b><br>Total repairs: ${reps.length}<br>Open repairs: ${open}<br>Missing GPS: ${nogps}<br>CSV: ready<br>KML: ${reps.some(r=>r.gps&&r.gps.lat)?'ready for GPS points':'no GPS points yet'}`}
-
-function exportCSV(){const p=project();if(!p)return alert('Open a project first.');const rows=[['Project','Repair ID','Type','Status','Date','Time','Tech','Location','Latitude','Longitude','Accuracy m','East AT ft','South AT ft','Notes','Photo']];(p.repairs||[]).slice().reverse().forEach(r=>rows.push([p.name,r.repairId,r.type,r.status,r.date,r.time,r.tech,r.location,r.gps?.lat,r.gps?.lng,r.gps?.acc,r.eastAT,r.southAT,r.notes,r.photo?.name||'']));download(safe(p.name)+'-repairs.csv',rows.map(x=>x.map(csv).join(',')).join('\n'),'text/csv')}
-function exportJSON(){const p=project();if(!p)return alert('Open a project first.');download(safe(p.name)+'-backup.json',JSON.stringify(p,null,2),'application/json')}
-function exportKML(){const p=project();if(!p)return alert('Open a project first.');const points=(p.repairs||[]).filter(r=>r.gps&&r.gps.lat).map(r=>`<Placemark><name>${esc(r.repairId)} ${esc(r.type)}</name><description><![CDATA[<b>Status:</b> ${esc(r.status)}<br><b>Time:</b> ${esc(r.time)}<br><b>Location:</b> ${esc(r.location)}<br><b>East AT:</b> ${esc(r.eastAT)} ft<br><b>South AT:</b> ${esc(r.southAT)} ft<br><b>Notes:</b> ${esc(r.notes)}]]></description><Point><coordinates>${r.gps.lng},${r.gps.lat},0</coordinates></Point></Placemark>`).join('\n');const kml=`<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>${esc(p.name)} Repairs</name>${points}</Document></kml>`;download(safe(p.name)+'-repairs.kml',kml,'application/vnd.google-earth.kml+xml')}
-function copySummary(){const p=project();if(!p)return alert('Open a project first.');const reps=p.repairs||[];const txt=`${p.name}\nRepairs: ${reps.length}\nOpen: ${reps.filter(r=>r.status!=='Verified Pass').length}\nMissing GPS: ${reps.filter(r=>!(r.gps&&r.gps.lat)).length}`;navigator.clipboard?.writeText(txt);alert(txt)}
-function safe(s){return String(s||'project').replace(/[^a-z0-9-_]+/gi,'-').replace(/-+/g,'-')}
-
-setInterval(()=>{const el=document.getElementById('repairTimePreview');if(el)el.textContent=nowLocal()},1000);
-startGPS();render();
+function exportCSV(){const p=project();if(!p)return alert('Open a project first.');const rows=[['Project','Repair ID','Type','Status','Date','Time','Tech','Location','Latitude','Longitude','Accuracy m','East AT ft','South AT ft','Notes','Photo']];(p.repairs||[]).slice().reverse().forEach(r=>rows.push([p.name,r.repairId,r.type,r.status,r.date,r.time,r.tech,r.location,r.gps?.lat,r.gps?.lng,r.gps?.acc,r.eastAT,r.southAT,r.notes,r.photo?.name||'']));download(safe(p.name)+'-repairs.csv',rows.map(x=>x.map(csv).join(',')).join('\n'),'text/csv')}function exportJSON(){const p=project();if(!p)return alert('Open a project first.');download(safe(p.name)+'-backup.json',JSON.stringify(p,null,2),'application/json')}function exportKML(){const p=project();if(!p)return alert('Open a project first.');const points=(p.repairs||[]).filter(r=>r.gps&&r.gps.lat).map(r=>`<Placemark><name>${esc(r.repairId)} ${esc(r.type)}</name><description><![CDATA[<b>Status:</b> ${esc(r.status)}<br><b>Time:</b> ${esc(r.time)}<br><b>Location:</b> ${esc(r.location)}<br><b>East AT:</b> ${esc(r.eastAT)} ft<br><b>South AT:</b> ${esc(r.southAT)} ft<br><b>Notes:</b> ${esc(r.notes)}]]></description><Point><coordinates>${r.gps.lng},${r.gps.lat},0</coordinates></Point></Placemark>`).join('\n');const kml=`<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>${esc(p.name)} Repairs</name>${points}</Document></kml>`;download(safe(p.name)+'-repairs.kml',kml,'application/vnd.google-earth.kml+xml')}function copySummary(){const p=project();if(!p)return alert('Open a project first.');const reps=p.repairs||[];const txt=`${p.name}\nRepairs: ${reps.length}\nOpen: ${reps.filter(r=>r.status!=='Verified Pass').length}\nMissing GPS: ${reps.filter(r=>!(r.gps&&r.gps.lat)).length}`;navigator.clipboard?.writeText(txt);alert(txt)}function safe(s){return String(s||'project').replace(/[^a-z0-9-_]+/gi,'-').replace(/-+/g,'-')}
+setInterval(()=>{const el=document.getElementById('repairTimePreview');if(el)el.textContent=nowLocal()},1000);startGPS();render();
 </script>
 </body>
 </html>
