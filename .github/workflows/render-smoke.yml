@@ -20,8 +20,8 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Install Playwright package
-        run: npm install --no-save playwright
+      - name: Install Playwright test package
+        run: npm install --no-save @playwright/test
 
       - name: Build app
         run: npm run build
@@ -38,30 +38,51 @@ jobs:
       - name: Verify app renders
         run: |
           node <<'NODE'
-          const { chromium } = require('playwright');
+          const { chromium } = require('@playwright/test');
+          const testStates = [
+            { name: 'clean', mode: 'clean' },
+            { name: 'corrupt-storage', mode: 'corrupt' }
+          ];
           (async () => {
             const browser = await chromium.launch({ headless: true });
-            const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
             const errors = [];
-            page.on('pageerror', err => errors.push(err.message));
-            page.on('console', msg => {
-              if (msg.type() === 'error') errors.push(msg.text());
-            });
-            await page.goto('http://127.0.0.1:4173/linersync/', { waitUntil: 'networkidle', timeout: 30000 });
-            await page.screenshot({ path: 'linersync-render-smoke.png', fullPage: true });
-            const bodyText = await page.locator('body').innerText({ timeout: 10000 });
-            const hasAppText = /LINERSYNC|Field Dashboard|Tap Capture|Mythos Checks|Exports|Last Logs/.test(bodyText);
-            const blankish = bodyText.trim().length < 20;
+            for (const state of testStates) {
+              const context = await browser.newContext();
+              await context.addInitScript(({ mode }) => {
+                localStorage.removeItem('linersync_functional_repo_v4');
+                localStorage.removeItem('linersync_qc_projects_v6');
+                if (mode === 'corrupt') {
+                  localStorage.setItem('linersync_functional_repo_v4', JSON.stringify({
+                    logs: [{ fields: null, constants: null, gps: { lat: 'bad', lng: 'bad' } }],
+                    points: [{ kind: null, x: 'bad', y: 'bad' }],
+                    constants: null,
+                    tab: 'logs'
+                  }));
+                  localStorage.setItem('linersync_qc_projects_v6', 'bad json');
+                }
+              }, { mode: state.mode });
+              const page = await context.newPage({ viewport: { width: 1280, height: 900 } });
+              page.on('pageerror', err => errors.push(`[${state.name}] ${err.message}`));
+              page.on('console', msg => { if (msg.type() === 'error') errors.push(`[${state.name}] ${msg.text()}`); });
+              await page.goto('http://127.0.0.1:4173/linersync/', { waitUntil: 'networkidle', timeout: 30000 });
+              await page.screenshot({ path: `linersync-render-smoke-${state.name}.png`, fullPage: true });
+              const bodyText = await page.locator('body').innerText({ timeout: 10000 });
+              const hasAppText = /LINERSYNC|Field Dashboard|Tap Capture|Mythos Checks|Exports|Last Logs/.test(bodyText);
+              const blankish = bodyText.trim().length < 20;
+              const startupErrorText = /startup error/i.test(bodyText);
+              if (!hasAppText || blankish || startupErrorText || errors.length) {
+                console.error(`[${state.name}] Rendered body text was:`);
+                console.error(bodyText);
+                if (errors.length) console.error(`[${state.name}] Browser errors:\n${errors.join('\n')}`);
+                throw new Error(`LinerSync render smoke failed for ${state.name}: app not healthy.`);
+              }
+              await context.close();
+            }
             await browser.close();
             if (errors.length) {
               console.error('Browser errors:\n' + errors.join('\n'));
             }
-            if (!hasAppText || blankish) {
-              console.error('Rendered body text was:');
-              console.error(bodyText);
-              throw new Error('LinerSync render smoke failed: app text not visible.');
-            }
-            console.log('LinerSync render smoke passed. Visible app text found.');
+            console.log('LinerSync render smoke passed for clean + corrupt localStorage.');
           })().catch(err => {
             console.error(err);
             process.exit(1);
@@ -73,4 +94,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linersync-render-smoke
-          path: linersync-render-smoke.png
+          path: linersync-render-smoke-*.png
