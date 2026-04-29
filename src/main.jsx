@@ -33,9 +33,7 @@ function makeCsv(logs){const headers=["id","type","status","time","project","rol
 function makeKml(logs){const marks=logs.filter(r=>r.gps).map(r=>`<Placemark><name>${r.type} ${r.fields.repairId||r.fields.seam||r.fields.panel||r.id}</name><description><![CDATA[${r.time}<br/>Roll: ${r.fields.roll||r.constants.activeRoll||""}<br/>Panel: ${r.fields.panel||r.constants.activePanel||""}<br/>Seam: ${r.fields.seam||r.constants.activeSeam||""}<br/>Notes: ${r.notes||""}]]></description><Point><coordinates>${r.gps.lng},${r.gps.lat},0</coordinates></Point></Placemark>`).join("\n"); return `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>LinerSync Points</name>${marks}</Document></kml>`;}
 function issues(constants,logs){const out=[]; if(!constants.project) out.push(["warn","Project missing","Fill project before export."]); if(!constants.activeRoll) out.push(["warn","Active roll missing","Set roll once; forms keep it until changed."]); if(!constants.activePanel) out.push(["warn","Active panel missing","Set panel/area before logging."]); if(logs.some(l=>!l.gps)) out.push(["warn","Some logs missing GPS","Capture GPS before locking important records."]); if(logs.some(l=>l.type==="Air Test" && Number(l.fields.holdMinutes||0)>0 && Number(l.fields.holdMinutes||0)<5)) out.push(["danger","Air test hold under 5 minutes","Correct/re-test before approval."]); if(logs.some(l=>l.status==="DRAFT")) out.push(["warn","Draft records exist","Lock good records in Logs."]); if(!logs.length) out.push(["danger","No logs saved","Capture first record."]); return out.length?out:[["ok","QC data looks clean","Keep logging."]];}
 function color(kind){return kind==="Repair"?"#f59e0b":kind==="Seam"?"#38bdf8":kind==="DT"?"#ef4444":kind==="Panel"?"#22c55e":"#a78bfa";}
-async function runResetIfRequested(){
-  const params = new URLSearchParams(window.location.search);
-  if (!params.has("reset")) return;
+function clearMatchingStorageKeys(){
   const tokens = ["linersync","qc","field"];
   const matches = (key)=>tokens.some(t=>String(key||"").toLowerCase().includes(t));
   for (const store of [window.localStorage, window.sessionStorage]) {
@@ -48,26 +46,31 @@ async function runResetIfRequested(){
       toDelete.forEach((k)=>store.removeItem(k));
     } catch {}
   }
+  return matches;
+}
+function resetPoisonedBrowserStateIfRequested(){
+  const params = new URLSearchParams(window.location.search);
+  if (!params.has("reset")) return Promise.resolve();
+  const matches = clearMatchingStorageKeys();
   if ("caches" in window) {
     try {
-      const names = await caches.keys();
-      await Promise.all(names.filter(matches).map((name)=>caches.delete(name)));
+      caches.keys().then((names)=>Promise.all(names.filter(matches).map((name)=>caches.delete(name)))).catch(()=>{});
     } catch {}
   }
   if ("serviceWorker" in navigator) {
     try {
-      const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.filter((r)=>String(r.scope||"").toLowerCase().includes("linersync")).map((r)=>r.unregister()));
+      navigator.serviceWorker.getRegistrations().then((regs)=>Promise.all(regs.filter((r)=>String(r.scope||"").toLowerCase().includes("linersync")).map((r)=>r.unregister()))).catch(()=>{});
     } catch {}
   }
   window.history.replaceState({}, "", window.location.pathname);
+  return Promise.resolve();
 }
 
 class StartupErrorBoundary extends React.Component {
   constructor(props){super(props); this.state={error:null};}
   static getDerivedStateFromError(error){return {error};}
   componentDidCatch(error){console.error("LinerSync runtime crash", error);}
-  resetStorage=()=>{try{localStorage.removeItem(STORAGE_KEY);}catch{} window.location.reload();};
+  resetStorage=()=>{clearMatchingStorageKeys(); window.location.reload();};
   render(){if(this.state.error){return <div className="startup-fallback"><h2>LinerSync startup error</h2><p>The app crashed during startup. Corrupt local data can cause this. Reset local data and reload.</p><pre>{String(this.state.error?.message||this.state.error)}</pre><button onClick={this.resetStorage}>Reset Local Data</button></div>;} return this.props.children;}
 }
 
@@ -112,7 +115,7 @@ const rootEl = document.getElementById("root");
 if (!rootEl) {
   document.body.innerHTML = "<pre style='padding:20px;color:red'>LinerSync boot error: missing #root</pre>";
 } else {
-  runResetIfRequested().finally(()=>{
+  resetPoisonedBrowserStateIfRequested().finally(()=>{
     createRoot(rootEl).render(<StartupErrorBoundary><App /></StartupErrorBoundary>);
   });
 }
