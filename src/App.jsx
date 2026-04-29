@@ -6,7 +6,7 @@ import VerifyEntry from "./components/VerifyEntry";
 import Logs from "./components/Logs";
 import AsBuiltMap from "./components/AsBuiltMap";
 import Exports from "./components/Exports";
-import { loadState, saveState } from "./lib/storage";
+import { buildBackupPayload, loadState, mergeImportedBackup, saveState } from "./lib/storage";
 import { getHighAccuracyPosition } from "./lib/gps";
 import { buildMythosAudit } from "./lib/mythos";
 import { RECORD_TYPES, colorForType, nowIso, uid } from "./lib/records";
@@ -29,12 +29,12 @@ function buildSession(constants, gps) {
 }
 
 export default function App() {
-  const persisted = useMemo(() => loadState(), []);
-  const [constants, setConstants] = useState(persisted.constants);
-  const [logs, setLogs] = useState(persisted.logs);
-  const [points, setPoints] = useState(persisted.points);
+  const loaded = useMemo(() => loadState(), []);
+  const [constants, setConstants] = useState(loaded.state.constants);
+  const [logs, setLogs] = useState(loaded.state.logs);
+  const [points, setPoints] = useState(loaded.state.points);
   const [tab, setTab] = useState("dashboard");
-  const [status, setStatus] = useState("Ready");
+  const [status, setStatus] = useState(loaded.repaired ? "Local state repaired from corrupt data" : "Ready");
   const [session, setSession] = useState(null);
   const [overrideReason, setOverrideReason] = useState("");
 
@@ -180,7 +180,7 @@ export default function App() {
         <Exports
           onCsv={() => download("linersync.csv", toCsv(logs), "text/csv")}
           onKml={() => download("linersync.kml", toKml(logs), "application/vnd.google-earth.kml+xml")}
-          onJson={() => download("linersync-backup.json", JSON.stringify({ constants, logs, points }, null, 2), "application/json")}
+          onJson={() => download("linersync-backup.json", JSON.stringify(buildBackupPayload({ constants, logs, points }), null, 2), "application/json") }
           onImport={(e) => {
             const file = e.target.files?.[0];
             if (!file) return;
@@ -188,11 +188,16 @@ export default function App() {
             reader.onload = () => {
               try {
                 const parsed = JSON.parse(String(reader.result || "{}"));
-                if (parsed.logs) setLogs((current) => [...parsed.logs, ...current]);
-                if (parsed.points) setPoints((current) => [...parsed.points, ...current]);
-                setStatus("Import complete");
+                const merged = mergeImportedBackup(parsed, { constants, logs, points });
+                setLogs(merged.logs);
+                setPoints(merged.points);
+                if (merged.skippedLogs || merged.skippedPoints) {
+                  setStatus(`Import partially completed: added ${merged.addedLogs} logs/${merged.addedPoints} points; skipped ${merged.skippedLogs} logs/${merged.skippedPoints} points`);
+                } else {
+                  setStatus(`Import complete: added ${merged.addedLogs} logs/${merged.addedPoints} points`);
+                }
               } catch {
-                setStatus("Import failed");
+                setStatus("Import failed due to invalid JSON");
               }
             };
             reader.readAsText(file);
