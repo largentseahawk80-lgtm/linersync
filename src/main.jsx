@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
 
@@ -19,7 +19,9 @@ const FIELD_BY_TYPE = {
 function now12(){return new Date().toLocaleString([], {hour12:true});}
 function uid(prefix="LS"){return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}`;}
 function blankConstants(){return {project:"", client:"", qcTech:"", installer:"", crew:"", activeRoll:"", activePanel:"", activeSeam:"", linerType:"HDPE", thickness:"60 mil", width:"23 ft", weather:"", wedgeMachine:"", extrusionWelder:"", rodLot:""};}
-function loadState(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY)) || null;}catch{return null;}}
+function safeObj(value, fallback = {}){return value && typeof value === "object" && !Array.isArray(value) ? value : fallback;}
+function safeArray(value){return Array.isArray(value) ? value : [];}
+function loadState(){try{const raw=localStorage.getItem(STORAGE_KEY); if(!raw) return null; const parsed=JSON.parse(raw); if(!parsed||typeof parsed!=="object") return null; return {constants:{...blankConstants(),...safeObj(parsed.constants)},logs:safeArray(parsed.logs),points:safeArray(parsed.points),tab:typeof parsed.tab==="string"?parsed.tab:"dashboard"};}catch{return null;}}
 function saveDownload(name,text,mime){const b=new Blob([text],{type:mime}); const u=URL.createObjectURL(b); const a=document.createElement("a"); a.href=u; a.download=name; a.click(); URL.revokeObjectURL(u);}
 function esc(v){return `"${String(v??"").replaceAll('"','""')}"`;}
 function makeCsv(logs){const headers=["id","type","status","time","project","roll","panel","seam","lat","lng","accuracyFt","fields","notes"]; const rows=logs.map(r=>[r.id,r.type,r.status,r.time,r.constants.project,r.fields.roll||r.constants.activeRoll,r.fields.panel||r.constants.activePanel,r.fields.seam||r.constants.activeSeam,r.gps?.lat||"",r.gps?.lng||"",r.gps?.accuracyFt||"",JSON.stringify(r.fields),r.notes||""]); return [headers.join(","),...rows.map(row=>row.map(esc).join(","))].join("\n");}
@@ -27,8 +29,15 @@ function makeKml(logs){const marks=logs.filter(r=>r.gps).map(r=>`<Placemark><nam
 function issues(constants,logs){const out=[]; if(!constants.project) out.push(["warn","Project missing","Fill project before export."]); if(!constants.activeRoll) out.push(["warn","Active roll missing","Set roll once; forms keep it until changed."]); if(!constants.activePanel) out.push(["warn","Active panel missing","Set panel/area before logging."]); if(logs.some(l=>!l.gps)) out.push(["warn","Some logs missing GPS","Capture GPS before locking important records."]); if(logs.some(l=>l.type==="Air Test" && Number(l.fields.holdMinutes||0)>0 && Number(l.fields.holdMinutes||0)<5)) out.push(["danger","Air test hold under 5 minutes","Correct/re-test before approval."]); if(logs.some(l=>l.status==="DRAFT")) out.push(["warn","Draft records exist","Lock good records in Logs."]); if(!logs.length) out.push(["danger","No logs saved","Capture first record."]); return out.length?out:[["ok","QC data looks clean","Keep logging."]];}
 function color(kind){return kind==="Repair"?"#f59e0b":kind==="Seam"?"#38bdf8":kind==="DT"?"#ef4444":kind==="Panel"?"#22c55e":"#a78bfa";}
 
+class StartupErrorBoundary extends React.Component {
+  constructor(props){super(props); this.state={error:null};}
+  static getDerivedStateFromError(error){return {error};}
+  componentDidCatch(error){console.error("LinerSync runtime crash", error);}
+  render(){if(this.state.error){return <div style={{padding:20,color:"#fecaca",fontFamily:"system-ui",background:"#111",minHeight:"100vh"}}><h2>LinerSync startup error</h2><p>The app crashed during startup. Clear site data/localStorage and reload.</p><pre>{String(this.state.error?.message||this.state.error)}</pre></div>;} return this.props.children;}
+}
+
 function App(){
-  const saved=loadState();
+  const saved=useMemo(()=>loadState(),[]);
   const [constants,setConstants]=useState(saved?.constants||blankConstants());
   const [logs,setLogs]=useState(saved?.logs||[]);
   const [points,setPoints]=useState(saved?.points||[]);
@@ -68,5 +77,5 @@ const rootEl = document.getElementById("root");
 if (!rootEl) {
   document.body.innerHTML = "<pre style='padding:20px;color:red'>LinerSync boot error: missing #root</pre>";
 } else {
-  createRoot(rootEl).render(<App />);
+  createRoot(rootEl).render(<StartupErrorBoundary><App /></StartupErrorBoundary>);
 }
