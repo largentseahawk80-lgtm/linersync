@@ -1,4 +1,4 @@
-export const RECORD_TYPES = ["Repair","Seam","Panel","Roll","Wedge Test","Extrusion","Air Test","DT","Daily"];
+export const RECORD_TYPES = ["Repair", "Seam", "Panel", "Roll", "Wedge Test", "Extrusion", "Air Test", "DT", "Daily"];
 
 export const FIELDS_BY_TYPE = {
   Repair: ["repairId", "repairType", "verifiedBy"],
@@ -10,6 +10,18 @@ export const FIELDS_BY_TYPE = {
   "Air Test": ["seam", "startPsi", "endPsi", "holdMinutes", "result"],
   DT: ["dtNumber", "seam", "result"],
   Daily: ["crew", "weather"]
+};
+
+export const REQUIRED_FIELDS_BY_TYPE = {
+  Repair: ["repairType"],
+  Seam: ["seam"],
+  Panel: ["panel", "roll"],
+  Roll: ["roll"],
+  "Wedge Test": ["seam", "peel", "shear", "result"],
+  Extrusion: ["result"],
+  "Air Test": ["seam", "startPsi", "endPsi", "holdMinutes", "result"],
+  DT: ["dtNumber", "seam", "result"],
+  Daily: []
 };
 
 export const colorForType = (type) => ({

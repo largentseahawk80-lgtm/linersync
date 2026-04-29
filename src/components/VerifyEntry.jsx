@@ -16,6 +16,14 @@ export default function VerifyEntry({
 }) {
   if (!visible || !session?.selectedType) return null;
 
+  const handlePhoto = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setPhoto(String(reader.result || ""));
+    reader.readAsDataURL(file);
+  };
+
   return (
     <section className="page">
       <div className="card">
@@ -27,7 +35,8 @@ export default function VerifyEntry({
           </label>
         ))}
         <label>Notes<textarea value={session.notes || ""} onChange={(e) => setNotes(e.target.value)} /></label>
-        <label>Photo<input type="file" accept="image/*" capture="environment" onChange={(e) => setPhoto(e.target.files?.[0]?.name || "")} /></label>
+        <label>Photo<input type="file" accept="image/*" capture="environment" onChange={handlePhoto} /></label>
+        {session.photo ? <img src={session.photo} alt="Capture preview" style={{ width: "100%", borderRadius: 10 }} /> : null}
         <label>Override reason<input value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)} /></label>
         <MythosPanel audit={session.mythosAudit} />
         <div className="button-row">

@@ -1,4 +1,4 @@
-import { FIELDS_BY_TYPE } from "./records";
+import { REQUIRED_FIELDS_BY_TYPE } from "./records";
 
 const needsSeam = ["Seam", "Wedge Test", "Air Test", "DT", "Repair", "Extrusion"];
 
@@ -16,7 +16,7 @@ export function buildMythosAudit(session, overrideReason = "") {
   if (!session.gps?.lat || !session.gps?.lng) blockers.push("Missing GPS");
   if (!type) blockers.push("Missing record type");
 
-  (FIELDS_BY_TYPE[type] || []).forEach((name) => { if (!fields[name]) blockers.push(`Missing required field: ${name}`); });
+  (REQUIRED_FIELDS_BY_TYPE[type] || []).forEach((name) => { if (!fields[name]) blockers.push(`Missing required field: ${name}`); });
 
   if (type === "Air Test") {
     if (Number(fields.holdMinutes || 0) < 5) blockers.push("Air Test holdMinutes below 5");

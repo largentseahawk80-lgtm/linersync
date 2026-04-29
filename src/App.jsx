@@ -23,7 +23,8 @@ function buildSession(constants, gps) {
     fields: {},
     notes: "",
     photo: "",
-    mythosAudit: null
+    mythosAudit: null,
+    sourceLogId: null
   };
 }
 
@@ -65,6 +66,13 @@ export default function App() {
     });
   }
 
+  useEffect(() => {
+    setSession((current) => {
+      if (!current || !current.selectedType) return current;
+      return { ...current, mythosAudit: buildMythosAudit(current, overrideReason) };
+    });
+  }, [overrideReason]);
+
   function saveRecord(lockRecord) {
     if (!session?.selectedType) {
       setStatus("Select record type before save");
@@ -78,7 +86,7 @@ export default function App() {
     }
 
     const record = {
-      id: uid("LOG"),
+      id: session.sourceLogId || uid("LOG"),
       type: session.selectedType,
       title: `${session.selectedType} - ${session.fields.repairId || session.fields.seam || session.fields.panel || session.fields.roll || "record"}`,
       status: lockRecord ? "LOCKED" : "DRAFT",
@@ -95,17 +103,30 @@ export default function App() {
       overrideReason: lockRecord ? overrideReason : ""
     };
 
-    setLogs((current) => [record, ...current]);
-    setPoints((current) => [{
-      id: uid("PT"),
-      kind: record.type,
-      label: record.title,
-      x: 10 + Math.random() * 80,
-      y: 10 + Math.random() * 80,
-      color: colorForType(record.type),
-      recordId: record.id,
-      gps: record.gps
-    }, ...current]);
+    setLogs((current) => session.sourceLogId
+      ? current.map((log) => (log.id === session.sourceLogId ? { ...record } : log))
+      : [record, ...current]);
+
+    setPoints((current) => {
+      if (session.sourceLogId) {
+        const existingIndex = current.findIndex((point) => point.recordId === session.sourceLogId);
+        if (existingIndex >= 0) {
+          const cloned = [...current];
+          cloned[existingIndex] = { ...cloned[existingIndex], kind: record.type, label: record.title, color: colorForType(record.type), gps: record.gps };
+          return cloned;
+        }
+      }
+      return [{
+        id: uid("PT"),
+        kind: record.type,
+        label: record.title,
+        x: 10 + Math.random() * 80,
+        y: 10 + Math.random() * 80,
+        color: colorForType(record.type),
+        recordId: record.id,
+        gps: record.gps
+      }, ...current];
+    });
 
     setSession(null);
     setOverrideReason("");
@@ -132,10 +153,10 @@ export default function App() {
       {tab === "logs" && (
         <Logs
           logs={logs}
-          onEdit={(log) => { setSession({ ...buildSession(log.constants, log.gps), status: "VERIFYING", selectedType: log.type, fields: { ...log.fields }, notes: log.notes || "", photo: log.photo || "", mythosAudit: log.mythosAudit }); setTab("capture"); }}
+          onEdit={(log) => { setSession({ ...buildSession(log.constants, log.gps), status: "VERIFYING", selectedType: log.type, fields: { ...log.fields }, notes: log.notes || "", photo: log.photo || "", mythosAudit: log.mythosAudit, sourceLogId: log.id }); setTab("capture"); }}
           onCopy={(log) => setLogs((current) => [{ ...log, id: uid("LOG"), status: "DRAFT" }, ...current])}
           onDelete={(id) => setLogs((current) => current.filter((log) => log.id !== id))}
-          onLock={(log) => { setSession({ ...buildSession(log.constants, log.gps), status: "VERIFYING", selectedType: log.type, fields: { ...log.fields }, notes: log.notes || "", photo: log.photo || "", mythosAudit: log.mythosAudit }); setTab("capture"); }}
+          onLock={(log) => { setSession({ ...buildSession(log.constants, log.gps), status: "VERIFYING", selectedType: log.type, fields: { ...log.fields }, notes: log.notes || "", photo: log.photo || "", mythosAudit: log.mythosAudit, sourceLogId: log.id }); setTab("capture"); }}
         />
       )}
       {tab === "asbuilt" && (
