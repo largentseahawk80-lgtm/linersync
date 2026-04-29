@@ -62,5 +62,7 @@ pre{white-space:pre-wrap;overflow:auto;background:#07101d;border:1px solid var(-
 .export-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
 .status-bar{position:fixed;left:16px;right:16px;bottom:calc(10px + env(safe-area-inset-bottom));max-width:720px;margin:0 auto;background:rgba(5,15,30,.96);border:1px solid var(--line);border-radius:16px;padding:10px 12px;text-align:center;color:var(--muted);font-weight:900;z-index:10}
 .danger-text{color:#fecaca}
+.startup-fallback{min-height:100vh;padding:24px;background:#111827;color:#fecaca;font-family:Inter,system-ui,sans-serif}
+.startup-fallback button{margin-top:12px;min-height:44px;border-radius:12px;padding:8px 14px;border:1px solid #374151;background:#1f2937;color:#fff;font-weight:700}
 @media(max-width:900px){.app-shell{grid-template-columns:1fr;padding:10px 10px calc(86px + env(safe-area-inset-bottom))}.sidebar{position:static}.topbar{top:8px}.kpis{grid-template-columns:repeat(2,1fr)}.form-grid{grid-template-columns:1fr}.asbuilt-layout{grid-template-columns:1fr}.asbuilt-toolbar{grid-template-columns:1fr}.module-strip{grid-template-columns:1fr 1fr}.page h2{font-size:30px}.brand h1{font-size:26px}.export-grid{grid-template-columns:1fr}}
 @media(max-width:430px){.button-row{display:grid}.button-row button{width:100%}.module-strip{grid-template-columns:1fr}.kpis{grid-template-columns:1fr}.mapbox,.vision-box{min-height:390px}}
