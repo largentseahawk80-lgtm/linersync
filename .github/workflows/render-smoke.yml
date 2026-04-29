@@ -20,6 +20,9 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Install Playwright package
+        run: npm install --no-save playwright
+
       - name: Build app
         run: npm run build
 
