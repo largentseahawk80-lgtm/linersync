@@ -9,15 +9,15 @@ export const defaultState = () => ({
 });
 
 export function loadState() {
-  let repaired = false;
+  const raw = localStorage.getItem(KEY);
+  if (raw === null) return { ...defaultState(), repaired: false };
+
   try {
-    const parsed = JSON.parse(localStorage.getItem(KEY) || "null");
+    const parsed = JSON.parse(raw);
     const normalized = normalizeState(parsed);
-    repaired = normalized.repaired;
-    return { ...defaultState(), ...normalized.state, repaired };
+    return { ...defaultState(), ...normalized.state, repaired: normalized.repaired };
   } catch {
-    repaired = true;
-    return { ...defaultState(), repaired };
+    return { ...defaultState(), repaired: true };
   }
 }
 

@@ -189,23 +189,14 @@ export default function App() {
             reader.onload = () => {
               try {
                 const parsed = JSON.parse(String(reader.result || "{}"));
-                let nextStatus = "Import complete";
-                setLogs((currentLogs) => {
-                  let nextLogs = currentLogs;
-                  setPoints((currentPoints) => {
-                    const result = mergeImportedData(currentLogs, currentPoints, parsed);
-                    nextLogs = result.logs;
-                    if (result.skippedLogs || result.skippedPoints) {
-                      nextStatus = `Import partially completed: ${result.skippedLogs} log(s) and ${result.skippedPoints} point(s) skipped`;
-                    }
-                    if (!result.importedLogs && !result.importedPoints && !result.skippedLogs && !result.skippedPoints) {
-                      nextStatus = "Import complete";
-                    }
-                    return result.points;
-                  });
-                  return nextLogs;
-                });
-                setStatus(nextStatus);
+                const result = mergeImportedData(logs, points, parsed);
+                setLogs(result.logs);
+                setPoints(result.points);
+                if (result.skippedLogs || result.skippedPoints) {
+                  setStatus(`Import partially completed: ${result.skippedLogs} log(s) and ${result.skippedPoints} point(s) skipped`);
+                } else {
+                  setStatus("Import complete");
+                }
               } catch {
                 setStatus("Import failed due to invalid JSON");
               }
