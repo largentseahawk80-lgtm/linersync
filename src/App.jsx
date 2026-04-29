@@ -11,6 +11,7 @@ import { getHighAccuracyPosition } from "./lib/gps";
 import { buildMythosAudit } from "./lib/mythos";
 import { RECORD_TYPES, colorForType, nowIso, uid } from "./lib/records";
 import { download, toCsv, toKml } from "./lib/exports";
+import { mergeImportedData } from "./lib/normalize";
 
 function buildSession(constants, gps) {
   return {
@@ -34,7 +35,7 @@ export default function App() {
   const [logs, setLogs] = useState(persisted.logs);
   const [points, setPoints] = useState(persisted.points);
   const [tab, setTab] = useState("dashboard");
-  const [status, setStatus] = useState("Ready");
+  const [status, setStatus] = useState(persisted.repaired ? "Local state repaired from corrupt data" : "Ready");
   const [session, setSession] = useState(null);
   const [overrideReason, setOverrideReason] = useState("");
 
@@ -180,7 +181,7 @@ export default function App() {
         <Exports
           onCsv={() => download("linersync.csv", toCsv(logs), "text/csv")}
           onKml={() => download("linersync.kml", toKml(logs), "application/vnd.google-earth.kml+xml")}
-          onJson={() => download("linersync-backup.json", JSON.stringify({ constants, logs, points }, null, 2), "application/json")}
+          onJson={() => download("linersync-backup.json", JSON.stringify({ app: "linersync-field-current-app", version: "1.0.0", exportedAt: nowIso(), constants, logs, points }, null, 2), "application/json")}
           onImport={(e) => {
             const file = e.target.files?.[0];
             if (!file) return;
@@ -188,11 +189,25 @@ export default function App() {
             reader.onload = () => {
               try {
                 const parsed = JSON.parse(String(reader.result || "{}"));
-                if (parsed.logs) setLogs((current) => [...parsed.logs, ...current]);
-                if (parsed.points) setPoints((current) => [...parsed.points, ...current]);
-                setStatus("Import complete");
+                let nextStatus = "Import complete";
+                setLogs((currentLogs) => {
+                  let nextLogs = currentLogs;
+                  setPoints((currentPoints) => {
+                    const result = mergeImportedData(currentLogs, currentPoints, parsed);
+                    nextLogs = result.logs;
+                    if (result.skippedLogs || result.skippedPoints) {
+                      nextStatus = `Import partially completed: ${result.skippedLogs} log(s) and ${result.skippedPoints} point(s) skipped`;
+                    }
+                    if (!result.importedLogs && !result.importedPoints && !result.skippedLogs && !result.skippedPoints) {
+                      nextStatus = "Import complete";
+                    }
+                    return result.points;
+                  });
+                  return nextLogs;
+                });
+                setStatus(nextStatus);
               } catch {
-                setStatus("Import failed");
+                setStatus("Import failed due to invalid JSON");
               }
             };
             reader.readAsText(file);

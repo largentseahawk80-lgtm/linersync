@@ -1,3 +1,5 @@
+import { normalizeState } from "./normalize";
+
 const KEY = "linersync_field_state_v1";
 
 export const defaultState = () => ({
@@ -7,11 +9,15 @@ export const defaultState = () => ({
 });
 
 export function loadState() {
+  let repaired = false;
   try {
     const parsed = JSON.parse(localStorage.getItem(KEY) || "null");
-    return parsed && typeof parsed === "object" ? { ...defaultState(), ...parsed } : defaultState();
+    const normalized = normalizeState(parsed);
+    repaired = normalized.repaired;
+    return { ...defaultState(), ...normalized.state, repaired };
   } catch {
-    return defaultState();
+    repaired = true;
+    return { ...defaultState(), repaired };
   }
 }
 
