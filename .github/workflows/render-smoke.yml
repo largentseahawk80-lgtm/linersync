@@ -71,14 +71,14 @@ jobs:
               await page.goto(`http://127.0.0.1:4173${state.path || '/linersync/'}`, { waitUntil: 'networkidle', timeout: 30000 });
               await page.screenshot({ path: `linersync-render-smoke-${state.name}.png`, fullPage: true });
               const bodyText = await page.locator('body').innerText({ timeout: 10000 });
-              const hasAppText = /LINERSYNC|Field Dashboard|Tap Capture|Mythos Checks|Exports|Last Logs/.test(bodyText);
+              const hasMountMarker = await page.locator('[data-linersync-mounted="true"]').count();
+              const hasStartingFallback = bodyText.includes('LinerSync is starting');
               const blankish = bodyText.trim().length < 20;
-              const startupErrorText = /startup error/i.test(bodyText);
-              if (!hasAppText || blankish || startupErrorText || errors.length) {
+              if (hasStartingFallback || !hasMountMarker || blankish || errors.length) {
                 console.error(`[${state.name}] Rendered body text was:`);
                 console.error(bodyText);
                 if (errors.length) console.error(`[${state.name}] Browser errors:\n${errors.join('\n')}`);
-                throw new Error(`LinerSync render smoke failed for ${state.name}: app not healthy.`);
+                throw new Error(`LinerSync render smoke failed for ${state.name}: app not healthy (fallback/marker/errors/blank check failed).`);
               }
               await context.close();
             }

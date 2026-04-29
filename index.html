@@ -14,6 +14,15 @@
   </head>
   <body>
     <div id="root"><div class="boot-fallback"><div><h1>LinerSync is starting...</h1><p>Loading Capture, Logs, As-Built, Mythos, and Exports.</p></div></div></div>
+    <script>
+      window.__linersyncMountWatch = window.setTimeout(() => {
+        const mounted = document.querySelector('[data-linersync-mounted="true"]');
+        if (mounted) return;
+        const root = document.getElementById('root');
+        if (!root) return;
+        root.innerHTML = '<div class="boot-fallback"><div><h1>LinerSync failed to mount. Open reset link.</h1><p><a href="?reset=1" style="color:#7dd3fc">Reset LinerSync local state</a></p></div></div>';
+      }, 8000);
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
