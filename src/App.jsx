@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import AppShell from "./components/AppShell";
 import Dashboard from "./components/Dashboard";
 import TapCapture from "./components/TapCapture";
@@ -12,6 +12,21 @@ import { buildMythosAudit } from "./lib/mythos";
 import { RECORD_TYPES, colorForType, nowIso, uid } from "./lib/records";
 import { download, toCsv, toKml } from "./lib/exports";
 
+function buildSession(constants, gps) {
+  return {
+    id: uid("CAP"),
+    status: "TYPE_SELECT",
+    capturedAt: nowIso(),
+    gps,
+    activeContext: { ...constants },
+    selectedType: "",
+    fields: {},
+    notes: "",
+    photo: "",
+    mythosAudit: null
+  };
+}
+
 export default function App() {
   const persisted = useMemo(() => loadState(), []);
   const [constants, setConstants] = useState(persisted.constants);
@@ -21,34 +36,148 @@ export default function App() {
   const [status, setStatus] = useState("Ready");
   const [session, setSession] = useState(null);
   const [overrideReason, setOverrideReason] = useState("");
-  const sync = (next) => saveState({ constants, logs: next.logs ?? logs, points: next.points ?? points });
 
-  const startCapture = async () => {
-    const capturedAt = nowIso();
+  useEffect(() => {
+    saveState({ constants, logs, points });
+  }, [constants, logs, points]);
+
+  async function startCapture() {
     setStatus("Capturing GPS...");
     const gps = await getHighAccuracyPosition();
-    setSession({ id: uid("CAP"), status: "TYPE_SELECT", capturedAt, gps, activeContext: { ...constants }, selectedType: "", fields: {}, notes: "", photo: "", mythosAudit: null });
+    setSession(buildSession(constants, gps));
     setTab("capture");
     setStatus("Select record type");
-  };
-  const setType = (type) => setSession((s) => ({ ...s, selectedType: type, status: "VERIFYING", mythosAudit: buildMythosAudit({ ...s, selectedType: type }) }));
-  const setField = (key, value) => setSession((s) => { const ns = { ...s, fields: { ...s.fields, [key]: value } }; return { ...ns, mythosAudit: buildMythosAudit(ns, overrideReason) }; });
-  const saveRecord = (lock) => {
+  }
+
+  function setType(type) {
+    setSession((current) => {
+      if (!current) return current;
+      const next = { ...current, selectedType: type, status: "VERIFYING" };
+      return { ...next, mythosAudit: buildMythosAudit(next, overrideReason) };
+    });
+  }
+
+  function setField(key, value) {
+    setSession((current) => {
+      if (!current) return current;
+      const next = { ...current, fields: { ...current.fields, [key]: value } };
+      return { ...next, mythosAudit: buildMythosAudit(next, overrideReason) };
+    });
+  }
+
+  function saveRecord(lockRecord) {
+    if (!session?.selectedType) {
+      setStatus("Select record type before save");
+      return;
+    }
+
     const audit = buildMythosAudit(session, overrideReason);
-    if (lock && !audit.canLock) return setStatus("Cannot lock without resolving blockers or override reason");
-    const rec = { id: uid("LOG"), type: session.selectedType, title: `${session.selectedType} - ${session.fields.repairId || session.fields.seam || session.fields.panel || session.fields.roll || "record"}`,
-      status: lock ? "LOCKED" : "DRAFT", time: nowIso(), capturedAt: session.capturedAt, gps: session.gps, constants: session.activeContext, fields: session.fields, notes: session.notes, photo: session.photo, mythosAudit: audit,
-      verifiedBy: lock ? (session.fields.verifiedBy || constants.qcTech || "") : "", verifiedAt: lock ? nowIso() : "", overrideReason: lock ? overrideReason : "" };
-    const nextLogs = [rec, ...logs];
-    const nextPoints = [{ id: uid("PT"), kind: rec.type, label: rec.title, x: 10 + Math.random() * 80, y: 10 + Math.random() * 80, color: colorForType(rec.type), recordId: rec.id, gps: rec.gps }, ...points];
-    setLogs(nextLogs); setPoints(nextPoints); sync({ logs: nextLogs, points: nextPoints }); setSession(null); setOverrideReason(""); setTab("logs");
-  };
-  return <AppShell status={status}><div className="button-row"><button onClick={()=>setTab("dashboard")}>Dashboard</button><button onClick={()=>setTab("logs")}>Logs</button><button onClick={()=>setTab("asbuilt")}>As-Built</button><button onClick={()=>setTab("exports")}>Exports</button></div>
-    <section className="card"><h3>Active Context</h3><label>Project<input value={constants.project} onChange={(e)=>setConstants({...constants,project:e.target.value})} /></label><label>QC Tech<input value={constants.qcTech} onChange={(e)=>setConstants({...constants,qcTech:e.target.value})} /></label><label>Roll<input value={constants.activeRoll} onChange={(e)=>setConstants({...constants,activeRoll:e.target.value})} /></label><label>Panel<input value={constants.activePanel} onChange={(e)=>setConstants({...constants,activePanel:e.target.value})} /></label><label>Seam<input value={constants.activeSeam} onChange={(e)=>setConstants({...constants,activeSeam:e.target.value})} /></label></section>
-    {tab==="dashboard" && <Dashboard startCapture={startCapture} />}
-    {tab==="capture" && <><TapCapture session={session} setType={setType} /><VerifyEntry session={session} setField={setField} setNotes={(v)=>setSession((s)=>({...s,notes:v}))} setPhoto={(v)=>setSession((s)=>({...s,photo:v}))} overrideReason={overrideReason} setOverrideReason={setOverrideReason} onCancel={()=>{setSession(null);setTab("dashboard");}} onSaveDraft={()=>saveRecord(false)} onLock={()=>saveRecord(true)} /></>}
-    {tab==="logs" && <Logs logs={logs} onEdit={(l)=>{setSession({id:uid("CAP"),status:"VERIFYING",capturedAt:l.capturedAt,gps:l.gps,activeContext:l.constants,selectedType:l.type,fields:{...l.fields},notes:l.notes||"",photo:l.photo||"",mythosAudit:l.mythosAudit});setTab("capture");}} onCopy={(l)=>setLogs([{...l,id:uid("LOG"),status:"DRAFT"},...logs])} onDelete={(id)=>setLogs(logs.filter((l)=>l.id!==id))} onLock={(l)=>{setSession({id:uid("CAP"),status:"VERIFYING",capturedAt:l.capturedAt,gps:l.gps,activeContext:l.constants,selectedType:l.type,fields:{...l.fields},notes:l.notes||"",photo:l.photo||"",mythosAudit:l.mythosAudit});setTab("capture");}} />}
-    {tab==="asbuilt" && <AsBuiltMap points={points} addPoint={(e)=>{const r=e.currentTarget.getBoundingClientRect(); setPoints([{id:uid("PT"),kind:RECORD_TYPES[0],label:"Manual",x:((e.clientX-r.left)/r.width)*100,y:((e.clientY-r.top)/r.height)*100,color:colorForType(RECORD_TYPES[0]),gps:null},...points]);}} />}
-    {tab==="exports" && <Exports onCsv={()=>download("linersync.csv",toCsv(logs),"text/csv")} onKml={()=>download("linersync.kml",toKml(logs),"application/vnd.google-earth.kml+xml")} onJson={()=>download("linersync-backup.json",JSON.stringify({constants,logs,points},null,2),"application/json")} onImport={(e)=>{const f=e.target.files?.[0]; if(!f) return; const fr=new FileReader(); fr.onload=()=>{try{const p=JSON.parse(String(fr.result||"{}")); if(p.logs) setLogs([...(p.logs||[]), ...logs]); if(p.points) setPoints([...(p.points||[]), ...points]); setStatus("Import complete");}catch{setStatus("Import failed");}}; fr.readAsText(f);}} />}
-  </AppShell>;
+    if (lockRecord && !audit.canLock) {
+      setStatus("Cannot lock: Mythos blockers found");
+      return;
+    }
+
+    const record = {
+      id: uid("LOG"),
+      type: session.selectedType,
+      title: `${session.selectedType} - ${session.fields.repairId || session.fields.seam || session.fields.panel || session.fields.roll || "record"}`,
+      status: lockRecord ? "LOCKED" : "DRAFT",
+      time: nowIso(),
+      capturedAt: session.capturedAt,
+      gps: session.gps,
+      constants: session.activeContext,
+      fields: session.fields,
+      notes: session.notes,
+      photo: session.photo,
+      mythosAudit: audit,
+      verifiedBy: lockRecord ? (session.fields.verifiedBy || constants.qcTech || "") : "",
+      verifiedAt: lockRecord ? nowIso() : "",
+      overrideReason: lockRecord ? overrideReason : ""
+    };
+
+    setLogs((current) => [record, ...current]);
+    setPoints((current) => [{
+      id: uid("PT"),
+      kind: record.type,
+      label: record.title,
+      x: 10 + Math.random() * 80,
+      y: 10 + Math.random() * 80,
+      color: colorForType(record.type),
+      recordId: record.id,
+      gps: record.gps
+    }, ...current]);
+
+    setSession(null);
+    setOverrideReason("");
+    setTab("logs");
+    setStatus(`${record.status} saved`);
+  }
+
+  return (
+    <AppShell status={status} tab={tab} setTab={setTab}>
+      <Dashboard startCapture={startCapture} visible={tab === "dashboard"} />
+      <TapCapture session={session} setType={setType} visible={tab === "capture"} />
+      <VerifyEntry
+        session={session}
+        visible={tab === "capture"}
+        setField={setField}
+        setNotes={(value) => setSession((s) => (s ? { ...s, notes: value } : s))}
+        setPhoto={(value) => setSession((s) => (s ? { ...s, photo: value } : s))}
+        overrideReason={overrideReason}
+        setOverrideReason={setOverrideReason}
+        onCancel={() => { setSession(null); setTab("dashboard"); }}
+        onSaveDraft={() => saveRecord(false)}
+        onLock={() => saveRecord(true)}
+      />
+      {tab === "logs" && (
+        <Logs
+          logs={logs}
+          onEdit={(log) => { setSession({ ...buildSession(log.constants, log.gps), status: "VERIFYING", selectedType: log.type, fields: { ...log.fields }, notes: log.notes || "", photo: log.photo || "", mythosAudit: log.mythosAudit }); setTab("capture"); }}
+          onCopy={(log) => setLogs((current) => [{ ...log, id: uid("LOG"), status: "DRAFT" }, ...current])}
+          onDelete={(id) => setLogs((current) => current.filter((log) => log.id !== id))}
+          onLock={(log) => { setSession({ ...buildSession(log.constants, log.gps), status: "VERIFYING", selectedType: log.type, fields: { ...log.fields }, notes: log.notes || "", photo: log.photo || "", mythosAudit: log.mythosAudit }); setTab("capture"); }}
+        />
+      )}
+      {tab === "asbuilt" && (
+        <AsBuiltMap
+          points={points}
+          addPoint={(event) => {
+            const rect = event.currentTarget.getBoundingClientRect();
+            setPoints((current) => [{
+              id: uid("PT"),
+              kind: RECORD_TYPES[0],
+              label: "Manual",
+              x: ((event.clientX - rect.left) / rect.width) * 100,
+              y: ((event.clientY - rect.top) / rect.height) * 100,
+              color: colorForType(RECORD_TYPES[0]),
+              gps: null
+            }, ...current]);
+          }}
+        />
+      )}
+      {tab === "exports" && (
+        <Exports
+          onCsv={() => download("linersync.csv", toCsv(logs), "text/csv")}
+          onKml={() => download("linersync.kml", toKml(logs), "application/vnd.google-earth.kml+xml")}
+          onJson={() => download("linersync-backup.json", JSON.stringify({ constants, logs, points }, null, 2), "application/json")}
+          onImport={(e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+              try {
+                const parsed = JSON.parse(String(reader.result || "{}"));
+                if (parsed.logs) setLogs((current) => [...parsed.logs, ...current]);
+                if (parsed.points) setPoints((current) => [...parsed.points, ...current]);
+                setStatus("Import complete");
+              } catch {
+                setStatus("Import failed");
+              }
+            };
+            reader.readAsText(file);
+          }}
+        />
+      )}
+    </AppShell>
+  );
 }
