@@ -1,0 +1,73 @@
+name: Render smoke test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  render-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build app
+        run: npm run build
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Start preview server
+        run: |
+          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/linersync-preview.log 2>&1 &
+          echo $! > /tmp/linersync-preview.pid
+          sleep 5
+
+      - name: Verify app renders
+        run: |
+          node <<'NODE'
+          const { chromium } = require('playwright');
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+            const errors = [];
+            page.on('pageerror', err => errors.push(err.message));
+            page.on('console', msg => {
+              if (msg.type() === 'error') errors.push(msg.text());
+            });
+            await page.goto('http://127.0.0.1:4173/linersync/', { waitUntil: 'networkidle', timeout: 30000 });
+            await page.screenshot({ path: 'linersync-render-smoke.png', fullPage: true });
+            const bodyText = await page.locator('body').innerText({ timeout: 10000 });
+            const hasAppText = /LINERSYNC|Field Dashboard|Tap Capture|Mythos Checks|Exports|Last Logs/.test(bodyText);
+            const blankish = bodyText.trim().length < 20;
+            await browser.close();
+            if (errors.length) {
+              console.error('Browser errors:\n' + errors.join('\n'));
+            }
+            if (!hasAppText || blankish) {
+              console.error('Rendered body text was:');
+              console.error(bodyText);
+              throw new Error('LinerSync render smoke failed: app text not visible.');
+            }
+            console.log('LinerSync render smoke passed. Visible app text found.');
+          })().catch(err => {
+            console.error(err);
+            process.exit(1);
+          });
+          NODE
+
+      - name: Upload render screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linersync-render-smoke
+          path: linersync-render-smoke.png
