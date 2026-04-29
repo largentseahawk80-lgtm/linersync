@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 import "./styles.css";
 
@@ -17,6 +17,22 @@ const FIELDS = {
   Daily: ["crew", "weather", "production", "issues"]
 };
 const CONST_FIELDS = [["project","Project"],["client","Client"],["qcTech","QC Tech"],["installer","Installer"],["crew","Crew"],["activeRoll","Active Roll"],["activePanel","Active Panel"],["activeSeam","Active Seam"],["linerType","Liner Type"],["thickness","Thickness"],["width","Width"],["weather","Weather"],["wedgeMachine","Wedge Machine"],["extrusionWelder","Extrusion Welder"],["rodLot","Rod Lot"]];
+
+class StartupErrorBoundary extends React.Component {
+  constructor(props){ super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error){ return { error }; }
+  componentDidCatch(error){ console.error("LinerSync startup/runtime error:", error); }
+  render(){
+    if(this.state.error){
+      return <div className="boot-screen"><div className="boot-card"><h1 className="boot-title">LinerSync startup/runtime error</h1><p className="boot-muted">The React app failed while rendering.</p><div className="boot-error">{String(this.state.error?.message || this.state.error)}</div></div></div>;
+    }
+    return this.props.children;
+  }
+}
+
+function safeGetItem(key){ try { return window.localStorage.getItem(key); } catch { return null; } }
+function safeSetItem(key, value){ try { window.localStorage.setItem(key, value); } catch {} }
+
 
 function now(){ return new Date().toLocaleString([], { hour12: true }); }
 function uid(prefix="LS"){ return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}`; }
@@ -45,10 +61,11 @@ function normalizeState(input){
   return { version:6, tab:"projects", activeProjectId:p.id, projects:[p] };
 }
 function loadState(){
-  const current = normalizeState(safeParse(localStorage.getItem(STORAGE_KEY)));
-  if (safeParse(localStorage.getItem(STORAGE_KEY))) return current;
+  const currentRaw = safeGetItem(STORAGE_KEY);
+  const current = normalizeState(safeParse(currentRaw));
+  if (safeParse(currentRaw)) return current;
   for (const k of LEGACY_KEYS) {
-    const old = safeParse(localStorage.getItem(k));
+    const old = safeParse(safeGetItem(k));
     if (old) return normalizeState(old);
   }
   return current;
@@ -97,7 +114,7 @@ function App(){
   const visible = logs.filter(l=>JSON.stringify(l).toLowerCase().includes(search.toLowerCase()));
   const circuit = `Roll ${constants.activeRoll||"-"} • Panel ${constants.activePanel||"-"} • Seam ${constants.activeSeam||"-"}`;
 
-  useEffect(()=>localStorage.setItem(STORAGE_KEY, JSON.stringify(safeState)), [JSON.stringify(safeState)]);
+  useEffect(()=>safeSetItem(STORAGE_KEY, JSON.stringify(safeState)), [safeState]);
   useEffect(()=>{
     if(editId) return;
     const next={};
@@ -147,7 +164,7 @@ function App(){
   </main><div className="status-bar">{status}</div></div>;
 }
 
-try { ReactDOM.createRoot(document.getElementById("root")).render(<App />); }
+try { ReactDOM.createRoot(document.getElementById("root")).render(<StartupErrorBoundary><App /></StartupErrorBoundary>); }
 catch (err) {
   const root=document.getElementById("root");
   if(root) root.innerHTML=`<div class="boot-screen"><div class="boot-card"><h1 class="boot-title">LinerSync boot error</h1><p class="boot-muted">React failed to start.</p><div class="boot-error">${String(err?.message||err)}</div></div></div>`;
