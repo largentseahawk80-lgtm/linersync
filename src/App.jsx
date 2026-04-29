@@ -1,5 +1,5 @@
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Activity, Archive, Brain, Camera, CheckCircle2, Copy, Crosshair, Download,
@@ -107,6 +107,62 @@ function makeKml(records) {
   return `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>LinerSync QC Points</name>${marks}</Document></kml>`;
 }
 
+
+function toFiniteNumber(value) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function safeDateFromTimestamp(timestamp) {
+  const parsed = toFiniteNumber(timestamp);
+  if (parsed === null) return now12();
+  const d = new Date(parsed);
+  return Number.isNaN(d.getTime()) ? now12() : d.toLocaleString([], { hour12: true });
+}
+
+function importOldRepairCaptureBackup(raw) {
+  if (!raw || typeof raw !== "object" || raw.app !== "LinerSync Repair Capture") return null;
+  const oldPoints = Array.isArray(raw.points) ? raw.points : [];
+  const perimeter = Array.isArray(raw.perimeter) ? raw.perimeter : [];
+  const repairs = oldPoints.flatMap((point, idx) => {
+    if (!point || typeof point !== "object") return [];
+    const lat = toFiniteNumber(point.lat);
+    const lng = toFiniteNumber(point.lng);
+    if (lat === null || lng === null) return [];
+    const accuracyFt = Math.max(0, Math.round((toFiniteNumber(point.accuracy) ?? 0) * 3.28084));
+    const createdAt = new Date(toFiniteNumber(point.timestamp) ?? Date.now()).toISOString();
+    const recordId = uid("LS");
+    const repairId = String(point.repair_id || `REPAIR-${idx + 1}`);
+    const repairType = String(point.repair_type || "Unknown");
+    const createdAtDisplay = safeDateFromTimestamp(point.timestamp);
+    const record = {
+      id: recordId,
+      type: "repair",
+      title: `Repair Log - ${repairId}`,
+      location: "Imported Repair Capture",
+      status: "locked",
+      constants: { ...blankConstants() },
+      fields: { repairId, repairType },
+      gps: { lat, lng, accuracyFt, capturedAt: createdAtDisplay },
+      createdAt,
+      createdAtDisplay: `${createdAtDisplay} • IMPORTED`,
+      notes: "Imported from legacy LinerSync Repair Capture backup"
+    };
+    const asBuilt = { id: uid("AB"), kind: "repair", label: `Repair ${repairId}`, x: 12 + Math.random() * 76, y: 12 + Math.random() * 70, color: colorForKind("repair"), recordId };
+    return [{ record, asBuilt }];
+  });
+  const perimeterPoints = perimeter.flatMap((point, idx) => {
+    if (!point || typeof point !== "object") return [];
+    return [{ id: uid("AB"), kind: "panel", label: String(point.id || `PER-${String(idx + 1).padStart(3, "0")}`), x: 12 + Math.random() * 76, y: 12 + Math.random() * 70, color: colorForKind("panel") }];
+  });
+  return {
+    records: repairs.map((r) => r.record),
+    points: [...repairs.map((r) => r.asBuilt), ...perimeterPoints],
+    importedRepairs: repairs.length,
+    importedPerimeter: perimeterPoints.length
+  };
+}
+
 function colorForKind(kind) {
   if (kind === "seam") return "#38bdf8";
   if (kind === "repair") return "#f59e0b";
@@ -183,6 +239,20 @@ function App() {
   const [query, setQuery] = useState("");
   const [editState, setEditState] = useState(null);
   const [toast, setToast] = useState("Ready");
+
+  function importBackupPayload(payload) {
+    const imported = importOldRepairCaptureBackup(payload);
+    if (!imported) {
+      setToast("Import failed: file is not a legacy Repair Capture backup");
+      return;
+    }
+    if (!imported.records.length && !imported.points.length) {
+      setToast("Import complete: no valid points found in backup");
+      return;
+    }
+    setState((s) => ({ ...s, records: [...imported.records, ...s.records], points: [...imported.points, ...s.points] }));
+    setToast(`Imported old Repair Capture backup: ${imported.importedRepairs} repairs, ${imported.importedPerimeter} perimeter points.`);
+  }
 
   useEffect(() => setState((s) => ({ ...s, tab })), [tab]);
 
@@ -286,7 +356,7 @@ function App() {
         {tab === "asbuilt" && <AsBuilt points={points} setPoints={setPoints} constants={constants} />}
         {tab === "vision" && <Vision constants={constants} gps={gps} captureGps={captureGps} points={points} />}
         {tab === "mythos" && <Mythos constants={constants} records={records} points={points} setTab={setTab} />}
-        {tab === "exports" && <Exports records={records} points={points} constants={constants} />}
+        {tab === "exports" && <Exports records={records} points={points} constants={constants} onImportBackup={importBackupPayload} />}
       </main>
       <div className="status-bar">{toast}</div>
     </div>
@@ -365,9 +435,23 @@ function Mythos({ constants, records, points, setTab }) {
   return <section className="page"><h2>Mythos QC Assistant</h2><p className="muted">Checks for missing constants, missing GPS, air test hold problems, drafts, repair/test support, and next action.</p><div className="card hero-card"><h3>Next Best Action</h3><p>{nextAction(constants, records)}</p><button onClick={() => setTab("capture")}>Do It Now</button></div><div className="issue-list">{issues.map((i, idx) => <div key={idx} className={`issue ${i.level}`}><strong>{i.title}</strong><p>{i.detail}</p><small>{i.action}</small></div>)}</div><div className="kpis"><Kpi label="Records Checked" value={records.length}/><Kpi label="Map Points" value={points.length}/><Kpi label="Issues" value={issues.filter(i => i.level !== "ok").length}/><Kpi label="Locked" value={records.filter(r => r.status === "locked").length}/></div></section>;
 }
 
-function Exports({ records, points, constants }) {
-  function backup() { downloadText("LinerSync_FIELD_backup.json", JSON.stringify({ constants, records, points, exportedAt: now12() }, null, 2), "application/json"); }
-  return <section className="page"><h2>Exports</h2><p className="muted">Download field data in working formats. CSV for Excel, JSON backup, KML for Google Earth.</p><div className="card export-grid"><button onClick={() => downloadText("LinerSync_FIELD_export.csv", makeCsv(records), "text/csv")}><Download size={16}/>CSV for Excel</button><button onClick={backup}><Download size={16}/>Full JSON Backup</button><button onClick={() => downloadText("LinerSync_FIELD_points.kml", makeKml(records), "application/vnd.google-earth.kml+xml")}><Map size={16}/>Google Earth KML</button><button onClick={() => downloadText("LinerSync_AsBuilt_points.json", JSON.stringify(points, null, 2), "application/json")}><Map size={16}/>As-Built Points</button></div><div className="card"><h3>Export Count</h3><p>{records.length} QC records • {points.length} as-built points</p></div></section>;
+function Exports({ records, points, constants, onImportBackup }) {
+  const fileInputRef = useRef(null);
+  function backup() { downloadText("LinerSync_FIELD_backup.json", JSON.stringify({ app: "LinerSync Field Current App", version: 1, constants, records, points, exportedAt: new Date().toISOString() }, null, 2), "application/json"); }
+  function openImportDialog() { fileInputRef.current?.click(); }
+  async function importJsonFile(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      onImportBackup?.(parsed);
+    } catch {
+      onImportBackup?.(null);
+    }
+  }
+  return <section className="page"><h2>Exports</h2><p className="muted">Download field data in working formats. CSV for Excel, JSON backup, KML for Google Earth.</p><div className="card export-grid"><button onClick={() => downloadText("LinerSync_FIELD_export.csv", makeCsv(records), "text/csv")}><Download size={16}/>CSV for Excel</button><button onClick={backup}><Download size={16}/>Full JSON Backup</button><button onClick={() => downloadText("LinerSync_FIELD_points.kml", makeKml(records), "application/vnd.google-earth.kml+xml")}><Map size={16}/>Google Earth KML</button><button onClick={() => downloadText("LinerSync_AsBuilt_points.json", JSON.stringify(points, null, 2), "application/json")}><Map size={16}/>As-Built Points</button><button onClick={openImportDialog}><Archive size={16}/>Import JSON Backup</button><input ref={fileInputRef} type="file" accept=".json,application/json" style={{ display: "none" }} onChange={importJsonFile} /></div><div className="card"><h3>Export Count</h3><p>{records.length} QC records • {points.length} as-built points</p></div></section>;
 }
 
 createRoot(document.getElementById("root")).render(<App />);
