@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
-import ReactDOM from "react-dom/client";
+import React, { useEffect, useState } from "react";
+import { createRoot } from "react-dom/client";
 import "./styles.css";
 
 const STORAGE_KEY = "linersync_functional_repo_v4";
@@ -64,4 +64,9 @@ function App(){
   </main><div className="status-bar">{status}</div></div>;
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+const rootEl = document.getElementById("root");
+if (!rootEl) {
+  document.body.innerHTML = "<pre style='padding:20px;color:red'>LinerSync boot error: missing #root</pre>";
+} else {
+  createRoot(rootEl).render(<App />);
+}
