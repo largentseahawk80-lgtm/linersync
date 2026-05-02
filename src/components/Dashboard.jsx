@@ -1,5 +1,4 @@
 import React, { useMemo } from "react";
-import FieldAuditorWorkerTestPanel from "./FieldAuditorWorkerTestPanel.jsx";
 
 export default function Dashboard({
   startCapture,
@@ -53,8 +52,6 @@ export default function Dashboard({
           </div>
         )}
       </div>
-
-      <FieldAuditorWorkerTestPanel />
     </section>
   );
 }
