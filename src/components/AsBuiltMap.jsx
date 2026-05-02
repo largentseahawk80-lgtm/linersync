@@ -6,16 +6,19 @@ function clampPercent(value) {
   return Math.max(2, Math.min(98, number));
 }
 
-export default function AsBuiltMap({ points = [], addPoint }) {
+export default function AsBuiltMap({ points = [], addPoint, orphanCount = 0 }) {
   return (
     <section className="page">
-      <h3>As-Built</h3>
+      <div className="section-title-row">
+        <h3>As-Built</h3>
+        {orphanCount > 0 ? (
+          <span className="warning-text small">{orphanCount} unlinked points hidden</span>
+        ) : null}
+      </div>
 
-      {!points.length ? (
+      {!points.length && !orphanCount ? (
         <div className="card empty-state">
-          <p className="muted">
-            No as-built points yet. Capture a GPS record first, or tap the map to place a manual point.
-          </p>
+          <p className="muted">No as-built points yet. Capture a GPS record first, or tap the map to place a manual point.</p>
         </div>
       ) : null}
 
@@ -41,6 +44,12 @@ export default function AsBuiltMap({ points = [], addPoint }) {
           );
         })}
       </div>
+
+      {orphanCount > 0 ? (
+        <p className="muted" style={{ marginTop: 8, textAlign: "center", fontSize: "0.78rem" }}>
+          {orphanCount} unlinked map points hidden from production map for data integrity.
+        </p>
+      ) : null}
     </section>
   );
 }
