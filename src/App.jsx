@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import AppShell from './components/AppShell';
 import ProjectHome from './components/ProjectHome';
 import Dashboard from './components/Dashboard';
@@ -7,108 +7,408 @@ import VerifyEntry from './components/VerifyEntry';
 import Logs from './components/Logs';
 import AsBuiltMap from './components/AsBuiltMap';
 import Exports from './components/Exports';
-import { loadState, saveState, Storage } from './lib/storage';
+import { Storage, defaultState } from './lib/storage';
+import { getHighAccuracyPosition } from './lib/gps';
+import { buildMythosAudit } from './lib/mythos';
+import { colorForType, uid } from './lib/records';
+import { download, toCsv, toKml } from './lib/exports';
+
+const emptyCapture = () => null;
+
+function normalizeImportedState(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  return {
+    constants: raw.constants || defaultState.constants,
+    logs: Array.isArray(raw.logs) ? raw.logs : [],
+    points: Array.isArray(raw.points) ? raw.points : []
+  };
+}
 
 export default function App() {
-  const [session, setSession] = useState(() => loadState() || { projects: [], activeProjectId: null, activeContext: {} });
-  const [view, setView] = useState('dashboard');
-  const [activeProject, setActiveProject] = useState(null);
+  const [projects, setProjects] = useState(() => Storage.getProjects());
+  const [activeProjectId, setActiveProjectId] = useState(() => Storage.getActiveProjectId());
+  const [tab, setTab] = useState(() => (Storage.getActiveProjectId() ? 'dashboard' : 'projects'));
   const [logs, setLogs] = useState([]);
-  const [constants, setConstants] = useState({});
   const [points, setPoints] = useState([]);
+  const [constants, setConstants] = useState(defaultState.constants);
+  const [captureSession, setCaptureSession] = useState(emptyCapture);
+  const [overrideReason, setOverrideReasonState] = useState('');
+  const [status, setStatus] = useState('Ready');
+
+  const activeProject = useMemo(
+    () => projects.find((project) => project.id === activeProjectId) || null,
+    [projects, activeProjectId]
+  );
 
   useEffect(() => {
-    saveState(session);
-  }, [session]);
-
-  useEffect(() => {
-    if (session.activeProjectId) {
-      const project = session.projects.find(p => p.id === session.activeProjectId);
-      setActiveProject(project);
-      if (project) {
-        const state = Storage.loadProjectState(project.id);
-        setLogs(state.logs || []);
-        setConstants(state.constants || {});
-        setPoints(state.points || []);
-      }
+    const migrated = Storage.runMigration?.();
+    if (migrated) {
+      setProjects(Storage.getProjects());
+      setActiveProjectId(migrated.id);
+      setTab('dashboard');
     }
-  }, [session.activeProjectId, session.projects]);
+  }, []);
 
-  const saveLog = (logData) => {
-    const newLog = {
-      ...logData,
-      id: Date.now(),
-      timestamp: new Date().toISOString(),
-      constants: {
-        ...session.activeContext,
-        activeRoll: constants.activeRoll || session.activeContext?.activeRoll || "",
-        activePanel: constants.activePanel || session.activeContext?.activePanel || "",
-        activeSeam: constants.activeSeam || session.activeContext?.activeSeam || "",
-        qcTech: constants.qcTech || session.activeContext?.qcTech || ""
+  useEffect(() => {
+    if (!activeProjectId) {
+      setLogs([]);
+      setPoints([]);
+      setConstants(defaultState.constants);
+      setCaptureSession(null);
+      setTab('projects');
+      return;
+    }
+
+    const state = Storage.loadProjectState(activeProjectId);
+    setLogs(state.logs || []);
+    setPoints(state.points || []);
+    setConstants(state.constants || defaultState.constants);
+    setCaptureSession(null);
+    setStatus('Project loaded');
+  }, [activeProjectId]);
+
+  const saveProjectState = (nextLogs = logs, nextPoints = points, nextConstants = constants) => {
+    if (!activeProjectId) return;
+    Storage.saveProjectState(activeProjectId, {
+      constants: nextConstants,
+      logs: nextLogs,
+      points: nextPoints
+    });
+  };
+
+  const openProject = (project) => {
+    Storage.setActiveProjectId(project.id);
+    setActiveProjectId(project.id);
+    setTab('dashboard');
+  };
+
+  const createProject = (data) => {
+    const project = Storage.createProject(data);
+    setProjects(Storage.getProjects());
+    setActiveProjectId(project.id);
+    setTab('dashboard');
+  };
+
+  const exitProject = () => {
+    Storage.setActiveProjectId('');
+    setActiveProjectId('');
+    setStatus('Select or create a project');
+  };
+
+  const getActiveContext = () => ({
+    project: activeProject?.name || constants.project || '',
+    activeRoll: constants.activeRoll || '',
+    activePanel: constants.activePanel || '',
+    activeSeam: constants.activeSeam || '',
+    qcTech: constants.qcTech || activeProject?.qcTech || ''
+  });
+
+  const updateCapture = (producer) => {
+    setCaptureSession((current) => {
+      if (!current) return current;
+      const next = typeof producer === 'function' ? producer(current) : producer;
+      return {
+        ...next,
+        mythosAudit: buildMythosAudit(next, overrideReason)
+      };
+    });
+  };
+
+  const startCapture = async () => {
+    if (!activeProject) {
+      setStatus('Open a project before capturing records');
+      return;
+    }
+
+    setStatus('Capturing GPS...');
+    const gps = await getHighAccuracyPosition();
+    const session = {
+      id: uid('CAP'),
+      projectId: activeProject.id,
+      capturedAt: gps.capturedAt || new Date().toISOString(),
+      gps,
+      selectedType: '',
+      fields: {},
+      notes: '',
+      photo: '',
+      activeContext: getActiveContext()
+    };
+
+    session.mythosAudit = buildMythosAudit(session, '');
+    setOverrideReasonState('');
+    setCaptureSession(session);
+    setTab('capture');
+    setStatus(gps.error ? `GPS warning: ${gps.error}` : 'GPS captured');
+  };
+
+  const setType = (type) => {
+    updateCapture((current) => ({
+      ...current,
+      selectedType: type,
+      fields: current.selectedType === type ? current.fields : {}
+    }));
+  };
+
+  const setField = (field, value) => {
+    updateCapture((current) => ({
+      ...current,
+      fields: {
+        ...(current.fields || {}),
+        [field]: value
+      }
+    }));
+  };
+
+  const setNotes = (notes) => {
+    updateCapture((current) => ({ ...current, notes }));
+  };
+
+  const setPhoto = (photo) => {
+    updateCapture((current) => ({ ...current, photo }));
+  };
+
+  const setOverrideReason = (value) => {
+    setOverrideReasonState(value);
+    setCaptureSession((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        mythosAudit: buildMythosAudit(current, value)
+      };
+    });
+  };
+
+  const recordTitle = (session) => {
+    const fields = session.fields || {};
+    return fields.repairId || fields.seam || fields.panel || fields.roll || fields.dtNumber || session.selectedType;
+  };
+
+  const commitCapture = (recordStatus) => {
+    if (!captureSession?.selectedType) {
+      setStatus('Choose a record type before saving');
+      return;
+    }
+
+    const finalAudit = buildMythosAudit(captureSession, overrideReason);
+    if (recordStatus === 'LOCKED' && !finalAudit.canLock) {
+      setStatus('Fix blockers or enter an override reason before locking');
+      setCaptureSession((current) => ({ ...current, mythosAudit: finalAudit }));
+      return;
+    }
+
+    const log = {
+      ...captureSession,
+      id: uid('LOG'),
+      type: captureSession.selectedType,
+      title: recordTitle(captureSession),
+      status: recordStatus,
+      verifiedBy: captureSession.activeContext?.qcTech || '',
+      overrideReason,
+      mythosAudit: finalAudit,
+      time: new Date(captureSession.capturedAt).toLocaleString(),
+      constants: captureSession.activeContext
+    };
+
+    const nextLogs = [log, ...logs];
+    const nextPoints = captureSession.gps?.lat && captureSession.gps?.lng
+      ? [
+          {
+            id: uid('PT'),
+            logId: log.id,
+            projectId: activeProjectId,
+            type: log.type,
+            kind: log.type,
+            label: log.title,
+            gps: log.gps,
+            x: 50,
+            y: 50,
+            color: colorForType(log.type)
+          },
+          ...points
+        ]
+      : points;
+
+    setLogs(nextLogs);
+    setPoints(nextPoints);
+    saveProjectState(nextLogs, nextPoints, constants);
+    setCaptureSession(null);
+    setOverrideReasonState('');
+    setTab('dashboard');
+    setStatus(`${recordStatus === 'LOCKED' ? 'Locked' : 'Saved'} ${log.type}`);
+  };
+
+  const editLog = (log) => {
+    setCaptureSession({
+      ...log,
+      selectedType: log.type,
+      fields: log.fields || {},
+      notes: log.notes || '',
+      photo: log.photo || '',
+      mythosAudit: buildMythosAudit({ ...log, selectedType: log.type }, log.overrideReason || '')
+    });
+    setOverrideReasonState(log.overrideReason || '');
+    setTab('capture');
+  };
+
+  const copyLog = (log) => {
+    const copy = {
+      ...log,
+      id: uid('LOG'),
+      status: 'DRAFT',
+      capturedAt: new Date().toISOString(),
+      time: new Date().toLocaleString(),
+      title: `${log.title || log.type} copy`
+    };
+    const nextLogs = [copy, ...logs];
+    setLogs(nextLogs);
+    saveProjectState(nextLogs, points, constants);
+    setStatus('Copied log as draft');
+  };
+
+  const deleteLog = (logId) => {
+    const nextLogs = logs.filter((log) => log.id !== logId);
+    const nextPoints = points.filter((point) => point.logId !== logId);
+    setLogs(nextLogs);
+    setPoints(nextPoints);
+    saveProjectState(nextLogs, nextPoints, constants);
+    setStatus('Deleted log');
+  };
+
+  const lockLog = (log) => {
+    const nextLogs = logs.map((item) => item.id === log.id ? { ...item, status: 'LOCKED' } : item);
+    setLogs(nextLogs);
+    saveProjectState(nextLogs, points, constants);
+    setStatus('Locked log');
+  };
+
+  const addManualPoint = (event) => {
+    if (!activeProjectId) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * 100;
+    const y = ((event.clientY - rect.top) / rect.height) * 100;
+    const nextPoints = [
+      {
+        id: uid('PT'),
+        projectId: activeProjectId,
+        type: 'Manual',
+        kind: 'Manual',
+        label: 'Manual point',
+        x,
+        y,
+        color: '#f59e0b'
+      },
+      ...points
+    ];
+    setPoints(nextPoints);
+    saveProjectState(logs, nextPoints, constants);
+    setStatus('Manual map point added');
+  };
+
+  const exportCsv = () => download(`${activeProject?.name || 'linersync'}-logs.csv`, toCsv(logs), 'text/csv;charset=utf-8;');
+  const exportKml = () => download(`${activeProject?.name || 'linersync'}-asbuilt.kml`, toKml(logs), 'application/vnd.google-earth.kml+xml');
+  const exportJson = () => download(
+    `${activeProject?.name || 'linersync'}-backup.json`,
+    JSON.stringify({ project: activeProject, constants, logs, points }, null, 2),
+    'application/json;charset=utf-8;'
+  );
+
+  const importJson = (event) => {
+    const file = event.target.files?.[0];
+    if (!file || !activeProjectId) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const imported = normalizeImportedState(JSON.parse(String(reader.result || '{}')));
+        if (!imported) throw new Error('Invalid backup');
+        setConstants(imported.constants);
+        setLogs(imported.logs);
+        setPoints(imported.points);
+        Storage.saveProjectState(activeProjectId, imported);
+        setStatus('JSON backup imported');
+      } catch (error) {
+        setStatus(`Import failed: ${error.message}`);
       }
     };
-    const updatedLogs = [...logs, newLog];
-    setLogs(updatedLogs);
-    Storage.saveProjectState(activeProject.id, { constants, logs: updatedLogs, points });
-    setView('project-home');
+    reader.readAsText(file);
   };
 
-  const exportCSV = () => {
-    const headers = ['Timestamp', 'Roll', 'Panel', 'Seam', 'QC Tech', 'Type', 'Value'];
-    const rows = logs.map(log => [
-      log.timestamp,
-      log.constants.activeRoll,
-      log.constants.activePanel,
-      log.constants.activeSeam,
-      log.constants.qcTech,
-      log.type,
-      log.value
-    ]);
-    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${activeProject?.name || 'project'}_export.csv`;
-    link.click();
-  };
+  if (!activeProject) {
+    return (
+      <ProjectHome
+        projects={projects}
+        activeProjectId={activeProjectId}
+        onOpenProject={openProject}
+        onCreateProject={createProject}
+      />
+    );
+  }
 
-  const renderView = () => {
-    switch (view) {
-      case 'dashboard':
-        return (
-          <Dashboard 
-            projects={session.projects} 
-            onSelectProject={(id) => {
-              setSession({ ...session, activeProjectId: id });
-              setView('project-home');
-            }}
-            onCreateProject={(name) => {
-              const newProject = { id: Date.now().toString(), name };
-              setSession({ ...session, projects: [...session.projects, newProject] });
-            }}
-          />
-        );
-      case 'project-home':
-        return <ProjectHome project={activeProject} setView={setView} />;
-      case 'capture':
-        return <TapCapture session={session} onSave={saveLog} onCancel={() => setView('project-home')} />;
-      case 'verify':
-        return <VerifyEntry session={session} onSave={saveLog} onCancel={() => setView('project-home')} />;
-      case 'logs':
-        return <Logs logs={logs} />;
-      case 'map':
-        return <AsBuiltMap points={points} />;
-      case 'exports':
-        return <Exports onExport={exportCSV} />;
-      default:
-        return <Dashboard projects={session.projects} />;
-    }
-  };
+  const captureContent = captureSession?.selectedType ? (
+    <VerifyEntry
+      session={captureSession}
+      setField={setField}
+      setNotes={setNotes}
+      setPhoto={setPhoto}
+      setOverrideReason={setOverrideReason}
+      overrideReason={overrideReason}
+      onCancel={() => {
+        setCaptureSession(null);
+        setOverrideReasonState('');
+        setTab('dashboard');
+      }}
+      onSaveDraft={() => commitCapture('DRAFT')}
+      onLock={() => commitCapture('LOCKED')}
+    />
+  ) : (
+    <TapCapture
+      session={captureSession}
+      activeProject={activeProject}
+      onStartCapture={startCapture}
+      setType={setType}
+    />
+  );
 
   return (
-    <AppShell view={view} setView={setView} activeProject={activeProject}>
-      {renderView()}
+    <AppShell
+      status={status}
+      tab={tab}
+      setTab={setTab}
+      activeProject={activeProject}
+      onExitProject={exitProject}
+    >
+      {tab === 'dashboard' ? (
+        <Dashboard
+          startCapture={startCapture}
+          activeProject={activeProject}
+          logs={logs}
+          setTab={setTab}
+        />
+      ) : null}
+
+      {tab === 'capture' ? captureContent : null}
+
+      {tab === 'logs' ? (
+        <Logs
+          logs={logs}
+          onEdit={editLog}
+          onCopy={copyLog}
+          onDelete={deleteLog}
+          onLock={lockLog}
+        />
+      ) : null}
+
+      {tab === 'asbuilt' ? (
+        <AsBuiltMap points={points} addPoint={addManualPoint} />
+      ) : null}
+
+      {tab === 'exports' ? (
+        <Exports
+          onCsv={exportCsv}
+          onKml={exportKml}
+          onJson={exportJson}
+          onImport={importJson}
+        />
+      ) : null}
     </AppShell>
   );
 }
