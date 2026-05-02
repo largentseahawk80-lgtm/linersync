@@ -18,6 +18,7 @@ import { makeMirrorEventFromLog } from './core/sync/logToMirrorEvent.js';
 import { upsertMirrorRecord } from './core/sync/shadowMirror.js';
 
 const emptyCapture = () => null;
+const metersToFeet = (meters) => Math.round((meters || 0) * 3.28084);
 
 function normalizeImportedState(raw) {
   if (!raw || typeof raw !== 'object') return null;
@@ -62,6 +63,14 @@ export default function App() {
   const [captureSession, setCaptureSession] = useState(emptyCapture);
   const [overrideReason, setOverrideReasonState] = useState('');
   const [status, setStatus] = useState('Ready');
+  const [gpsMeter, setGpsMeter] = useState({
+    supported: typeof navigator !== 'undefined' && !!navigator.geolocation,
+    accuracyFt: null,
+    timestamp: null,
+    error: null,
+    lat: null,
+    lng: null
+  });
 
   const activeProject = useMemo(
     () => projects.find((project) => project.id === activeProjectId) || null,
@@ -75,6 +84,42 @@ export default function App() {
       setActiveProjectId(migrated.id);
       setTab('dashboard');
     }
+  }, []);
+
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setGpsMeter({ supported: false, accuracyFt: null, timestamp: null, error: 'UNSUPPORTED', lat: null, lng: null });
+      return;
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        setGpsMeter({
+          supported: true,
+          accuracyFt: metersToFeet(position.coords.accuracy),
+          timestamp: Date.now(),
+          error: null,
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        });
+      },
+      (error) => {
+        let errorCode = 'GPS_ERROR';
+        if (error.code === 1) errorCode = 'PERMISSION_DENIED';
+        if (error.code === 2) errorCode = 'POSITION_UNAVAILABLE';
+        if (error.code === 3) errorCode = 'TIMEOUT';
+
+        setGpsMeter((current) => ({
+          ...current,
+          supported: true,
+          error: errorCode,
+          timestamp: current.timestamp || null
+        }));
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
   }, []);
 
   useEffect(() => {
@@ -439,6 +484,7 @@ export default function App() {
       setTab={setTab}
       activeProject={activeProject}
       onExitProject={exitProject}
+      gpsMeter={gpsMeter}
     >
       {tab === 'dashboard' ? (
         <Dashboard
@@ -447,6 +493,7 @@ export default function App() {
           logs={logs}
           setTab={setTab}
           status={status}
+          gpsMeter={gpsMeter}
         />
       ) : null}
 
