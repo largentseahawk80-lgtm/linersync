@@ -1,1 +1,228 @@
-import React, { useEffect, useMemo, useState } from "react"; import AppShell from "./components/AppShell"; import ProjectHome from "./components/ProjectHome"; import Dashboard from "./components/Dashboard"; import TapCapture from "./components/TapCapture"; import VerifyEntry from "./components/VerifyEntry"; import Logs from "./components/Logs"; import AsBuiltMap from "./components/AsBuiltMap"; import Exports from "./components/Exports"; import { loadState, saveState, Storage } from "./lib/storage"; import { getHighAccuracyPosition } from "./lib/gps"; import { buildMythosAudit } from "./lib/mythos"; import { RECORD_TYPES, colorForType, nowIso, uid } from "./lib/records"; import { download, toCsv, toKml } from "./lib/exports"; export default function App() { const boot = useMemo(() => { const active = Storage.getActiveProject(); return { active, projects: Storage.getProjects(), state: active ? Storage.loadProjectState(active.id) : loadState() }; }, []); const [projects, setProjects] = useState(boot.projects); const [activeProject, setActiveProject] = useState(boot.active); const [loadedProjectId, setLoadedProjectId] = useState(boot.active?.id || ""); const [constants, setConstants] = useState(boot.state.constants); const [logs, setLogs] = useState(boot.state.logs); const [points, setPoints] = useState(boot.state.points); const [tab, setTab] = useState("dashboard"); const [status, setStatus] = useState("Ready"); const [session, setSession] = useState(null); const [overrideReason, setOverrideReason] = useState(""); useEffect(() => { const migrated = Storage.runMigration(); setProjects(Storage.getProjects()); if (!activeProject && (Storage.getActiveProject() || migrated)) { const p = Storage.getActiveProject() || migrated; setActiveProject(p); Storage.setActiveProjectId(p.id); } }, []); useEffect(() => { if (!activeProject?.id) return; const s = Storage.loadProjectState(activeProject.id); setConstants(s.constants); setLogs(s.logs); setPoints(s.points); setLoadedProjectId(activeProject.id); setSession(null); setTab("dashboard"); }, [activeProject?.id]); useEffect(() => { if (activeProject?.id && loadedProjectId === activeProject.id) { Storage.saveProjectState(activeProject.id, { constants, logs, points }); } else if (!activeProject?.id) { saveState({ constants, logs, points }); } }, [activeProject?.id, loadedProjectId, constants, logs, points]); useEffect(() => { setSession(c => (c && c.selectedType ? { ...c, mythosAudit: buildMythosAudit(c, overrideReason) } : c)); }, [overrideReason]); const exitProject = () => { Storage.setActiveProjectId(""); setActiveProject(null); setTab("dashboard"); setProjects(Storage.getProjects()); }; const startCapture = async () => { if (!activeProject) return setStatus("Open project first"); setStatus("Capturing GPS..."); const gps = await getHighAccuracyPosition(); setSession({ id: uid("CAP"), projectId: activeProject.id, status: "TYPE_SELECT", capturedAt: nowIso(), gps, activeContext: { ...constants }, selectedType: "", fields: {}, notes: "", photo: "", mythosAudit: null, sourceLogId: null }); setTab("capture"); setStatus("Select type"); }; const saveRecord = (lock) => { const audit = buildMythosAudit(session, overrideReason); if (lock && !audit.canLock) return setStatus("Mythos Blocked"); const rec = { id: session.sourceLogId || uid("LOG"), projectId: activeProject.id, type: session.selectedType, title: `${session.selectedType} - ${session.fields.repairId || session.fields.seam || "record"}`, status: lock ? "LOCKED" : "DRAFT", time: nowIso(), capturedAt: session.capturedAt, gps: session.gps, constants: session.activeContext, fields: session.fields, notes: session.notes, photo: session.photo, mythosAudit: audit, verifiedBy: lock ? (constants.qcTech || "") : "", verifiedAt: lock ? nowIso() : "", overrideReason: lock ? overrideReason : "" }; setLogs(c => session.sourceLogId ? c.map(l => l.id === session.sourceLogId ? rec : l) : [rec, ...c]); if (rec.gps?.lat) { const pt = { id: uid("PT"), projectId: activeProject.id, kind: rec.type, label: rec.title, x: 10 + Math.random() * 80, y: 10 + Math.random() * 80, color: colorForType(rec.type), recordId: rec.id, gps: rec.gps }; setPoints(c => session.sourceLogId ? c.map(p => p.recordId === session.sourceLogId ? { ...p, label: rec.title, gps: rec.gps } : p) : [pt, ...c]); } setSession(null); setOverrideReason(""); setTab("logs"); setStatus("Saved"); }; if (!activeProject) return <ProjectHome projects={projects} activeProjectId={Storage.getActiveProjectId()} onOpenProject={setActiveProject} onCreateProject={p => setActiveProject(Storage.createProject(p))} />; return ( <AppShell status={status} tab={tab} setTab={setTab} activeProject={activeProject} onExitProject={exitProject} > <Dashboard startCapture={startCapture} visible={tab === "dashboard"} activeProject={activeProject} logs={logs} setTab={setTab} /> <TapCapture session={session} setType={t => setSession(s => ({ ...s, selectedType: t, status: "VERIFYING" }))} visible={tab === "capture"} /> <VerifyEntry session={session} visible={tab === "capture"} setField={(k, v) => setSession(s => ({ ...s, fields: { ...s.fields, [k]: v } }))} setNotes={v => setSession(s => ({ ...s, notes: v }))} setPhoto={v => setSession(s => ({ ...s, photo: v }))} overrideReason={overrideReason} setOverrideReason={setOverrideReason} onCancel={() => { setSession(null); setTab("dashboard"); }} onSaveDraft={() => saveRecord(false)} onLock={() => saveRecord(true)} /> {tab === "logs" && <Logs logs={logs} onEdit={l => { setSession({ ...l, status: "VERIFYING", selectedType: l.type, sourceLogId: l.id }); setTab("capture"); }} onCopy={l => setLogs(c => [{ ...l, id: uid("LOG"), status: "DRAFT" }, ...c])} onDelete={id => setLogs(c => c.filter(l => l.id !== id))} onLock={l => { setSession({ ...l, status: "VERIFYING", selectedType: l.type, sourceLogId: l.id }); setTab("capture"); }} />} {tab === "asbuilt" && <AsBuiltMap points={points} addPoint={e => { const r = e.currentTarget.getBoundingClientRect(); setPoints(c => [{ id: uid("PT"), projectId: activeProject.id, kind: RECORD_TYPES[0], label: "Manual", x: ((e.clientX - r.left) / r.width) * 100, y: ((e.clientY - r.top) / r.height) * 100, color: colorForType(RECORD_TYPES[0]), gps: null }, ...c]); }} />} {tab === "exports" && <Exports onCsv={() => download(`${activeProject.name}.csv`, toCsv(logs))} onKml={() => download(`${activeProject.name}.kml`, toKml(logs))} onJson={() => download(`${activeProject.name}.json`, JSON.stringify({ project: activeProject, constants, logs, points }))} onImport={e => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = () => { const p = JSON.parse(String(r.result)); if (p.logs) setLogs(c => [...p.logs.map(l => ({ ...l, projectId: activeProject.id })), ...c]); setStatus("Imported"); }; r.readAsText(f); }} />} </AppShell> ); }
+import React, { useEffect, useMemo, useState } from "react";
+import AppShell from "./components/AppShell";
+import ProjectHome from "./components/ProjectHome";
+import Dashboard from "./components/Dashboard";
+import TapCapture from "./components/TapCapture";
+import VerifyEntry from "./components/VerifyEntry";
+import Logs from "./components/Logs";
+import AsBuiltMap from "./components/AsBuiltMap";
+import Exports from "./components/Exports";
+import { loadState, saveState, Storage } from "./lib/storage";
+import { getHighAccuracyPosition } from "./lib/gps";
+import { buildMythosAudit } from "./lib/mythos";
+import { RECORD_TYPES, colorForType, nowIso, uid } from "./lib/records";
+import { download, toCsv, toKml } from "./lib/exports";
+
+export default function App() {
+  const boot = useMemo(() => {
+    const active = Storage.getActiveProject();
+    return {
+      active,
+      projects: Storage.getProjects(),
+      state: active ? Storage.loadProjectState(active.id) : loadState()
+    };
+  }, []);
+
+  const [projects, setProjects] = useState(boot.projects);
+  const [activeProject, setActiveProject] = useState(boot.active);
+  const [loadedProjectId, setLoadedProjectId] = useState(boot.active?.id || "");
+  const [constants, setConstants] = useState(boot.state.constants);
+  const [logs, setLogs] = useState(boot.state.logs);
+  const [points, setPoints] = useState(boot.state.points);
+  const [tab, setTab] = useState("dashboard");
+  const [status, setStatus] = useState("Ready");
+  const [session, setSession] = useState(null);
+  const [overrideReason, setOverrideReason] = useState("");
+
+  useEffect(() => {
+    const migrated = Storage.runMigration();
+    setProjects(Storage.getProjects());
+    if (!activeProject && (Storage.getActiveProject() || migrated)) {
+      const p = Storage.getActiveProject() || migrated;
+      setActiveProject(p);
+      Storage.setActiveProjectId(p.id);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!activeProject?.id) return;
+    const s = Storage.loadProjectState(activeProject.id);
+    setConstants(s.constants);
+    setLogs(s.logs);
+    setPoints(s.points);
+    setLoadedProjectId(activeProject.id);
+    setSession(null);
+    setTab("dashboard");
+  }, [activeProject?.id]);
+
+  useEffect(() => {
+    if (activeProject?.id && loadedProjectId === activeProject.id) {
+      Storage.saveProjectState(activeProject.id, { constants, logs, points });
+    } else if (!activeProject?.id) {
+      saveState({ constants, logs, points });
+    }
+  }, [activeProject?.id, loadedProjectId, constants, logs, points]);
+
+  useEffect(() => {
+    setSession((c) => (c && c.selectedType ? { ...c, mythosAudit: buildMythosAudit(c, overrideReason) } : c));
+  }, [overrideReason]);
+
+  const exitProject = () => {
+    Storage.setActiveProjectId("");
+    setActiveProject(null);
+    setTab("dashboard");
+    setProjects(Storage.getProjects());
+  };
+
+  const startCapture = async () => {
+    if (!activeProject) return setStatus("Open project first");
+    setStatus("Capturing GPS...");
+    const gps = await getHighAccuracyPosition();
+    setSession({
+      id: uid("CAP"),
+      projectId: activeProject.id,
+      status: "TYPE_SELECT",
+      capturedAt: nowIso(),
+      gps,
+      activeContext: { ...constants },
+      selectedType: "",
+      fields: {},
+      notes: "",
+      photo: "",
+      mythosAudit: null,
+      sourceLogId: null
+    });
+    setTab("capture");
+    setStatus("Select type");
+  };
+
+  const saveRecord = (lock) => {
+    const audit = buildMythosAudit(session, overrideReason);
+    if (lock && !audit.canLock) return setStatus("Mythos Blocked");
+
+    const rec = {
+      id: session.sourceLogId || uid("LOG"),
+      projectId: activeProject.id,
+      type: session.selectedType,
+      title: `${session.selectedType} - ${session.fields.repairId || session.fields.seam || "record"}`,
+      status: lock ? "LOCKED" : "DRAFT",
+      time: nowIso(),
+      capturedAt: session.capturedAt,
+      gps: session.gps,
+      constants: session.activeContext,
+      fields: session.fields,
+      notes: session.notes,
+      photo: session.photo,
+      mythosAudit: audit,
+      verifiedBy: lock ? (constants.qcTech || "") : "",
+      verifiedAt: lock ? nowIso() : "",
+      overrideReason: lock ? overrideReason : ""
+    };
+
+    setLogs((c) => session.sourceLogId ? c.map((l) => l.id === session.sourceLogId ? rec : l) : [rec, ...c]);
+
+    if (rec.gps?.lat) {
+      const pt = {
+        id: uid("PT"),
+        projectId: activeProject.id,
+        kind: rec.type,
+        label: rec.title,
+        x: 10 + Math.random() * 80,
+        y: 10 + Math.random() * 80,
+        color: colorForType(rec.type),
+        recordId: rec.id,
+        gps: rec.gps
+      };
+      setPoints((c) => session.sourceLogId
+        ? c.map((p) => p.recordId === session.sourceLogId ? { ...p, label: rec.title, gps: rec.gps } : p)
+        : [pt, ...c]
+      );
+    }
+
+    setSession(null);
+    setOverrideReason("");
+    setTab("logs");
+    setStatus("Saved");
+  };
+
+  if (!activeProject) {
+    return (
+      <ProjectHome
+        projects={projects}
+        activeProjectId={Storage.getActiveProjectId()}
+        onOpenProject={setActiveProject}
+        onCreateProject={(p) => setActiveProject(Storage.createProject(p))}
+      />
+    );
+  }
+
+  return (
+    <AppShell status={status} tab={tab} setTab={setTab} activeProject={activeProject} onExitProject={exitProject}>
+      <Dashboard startCapture={startCapture} visible={tab === "dashboard"} activeProject={activeProject} logs={logs} setTab={setTab} />
+      <TapCapture
+        session={session}
+        activeProject={activeProject}
+        onStartCapture={startCapture}
+        setType={(t) => setSession((s) => ({ ...s, selectedType: t, status: "VERIFYING" }))}
+        visible={tab === "capture"}
+      />
+      <VerifyEntry
+        session={session}
+        visible={tab === "capture"}
+        setField={(k, v) => setSession((s) => ({ ...s, fields: { ...s.fields, [k]: v } }))}
+        setNotes={(v) => setSession((s) => ({ ...s, notes: v }))}
+        setPhoto={(v) => setSession((s) => ({ ...s, photo: v }))}
+        overrideReason={overrideReason}
+        setOverrideReason={setOverrideReason}
+        onCancel={() => { setSession(null); setTab("dashboard"); }}
+        onSaveDraft={() => saveRecord(false)}
+        onLock={() => saveRecord(true)}
+      />
+      {tab === "logs" && (
+        <Logs
+          logs={logs}
+          onEdit={(l) => { setSession({ ...l, status: "VERIFYING", selectedType: l.type, sourceLogId: l.id }); setTab("capture"); }}
+          onCopy={(l) => setLogs((c) => [{ ...l, id: uid("LOG"), status: "DRAFT" }, ...c])}
+          onDelete={(id) => setLogs((c) => c.filter((l) => l.id !== id))}
+          onLock={(l) => { setSession({ ...l, status: "VERIFYING", selectedType: l.type, sourceLogId: l.id }); setTab("capture"); }}
+        />
+      )}
+      {tab === "asbuilt" && (
+        <AsBuiltMap
+          points={points}
+          addPoint={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            setPoints((c) => [{
+              id: uid("PT"),
+              projectId: activeProject.id,
+              kind: RECORD_TYPES[0],
+              label: "Manual",
+              x: ((e.clientX - r.left) / r.width) * 100,
+              y: ((e.clientY - r.top) / r.height) * 100,
+              color: colorForType(RECORD_TYPES[0]),
+              gps: null
+            }, ...c]);
+          }}
+        />
+      )}
+      {tab === "exports" && (
+        <Exports
+          onCsv={() => download(`${activeProject.name}.csv`, toCsv(logs))}
+          onKml={() => download(`${activeProject.name}.kml`, toKml(logs))}
+          onJson={() => download(`${activeProject.name}.json`, JSON.stringify({ project: activeProject, constants, logs, points }))}
+          onImport={(e) => {
+            const f = e.target.files?.[0];
+            if (!f) return;
+            const r = new FileReader();
+            r.onload = () => {
+              const p = JSON.parse(String(r.result));
+              if (p.logs) setLogs((c) => [...p.logs.map((l) => ({ ...l, projectId: activeProject.id })), ...c]);
+              setStatus("Imported");
+            };
+            r.readAsText(f);
+          }}
+        />
+      )}
+    </AppShell>
+  );
+}
