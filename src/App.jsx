@@ -13,6 +13,7 @@ import { buildMythosAudit } from './lib/mythos';
 import { colorForType, uid } from './lib/records';
 import { download, toCsv, toKml } from './lib/exports';
 import { runPassiveAudit } from './core/audit/auditTrigger.js';
+import { resolveProjectSpecs } from './core/audit/defaultProjectSpecs.js';
 import { makeMirrorEventFromLog } from './core/sync/logToMirrorEvent.js';
 import { upsertMirrorRecord } from './core/sync/shadowMirror.js';
 
@@ -29,6 +30,7 @@ function normalizeImportedState(raw) {
 
 function makeProjectMirrorEvent(project, constants = {}) {
   if (!project?.id) return null;
+  const projectSpecs = resolveProjectSpecs(project, constants);
 
   return {
     eventId: `APP-SAVE-PROJECT-${project.id}`,
@@ -42,7 +44,7 @@ function makeProjectMirrorEvent(project, constants = {}) {
         name: project.name || constants.project || 'LinerSync',
         projectName: project.name || constants.project || 'LinerSync',
         status: 'ACTIVE',
-        projectSpecs: project.projectSpecs || constants.projectSpecs || null
+        projectSpecs
       }
     },
     timestamp: new Date().toISOString(),
@@ -106,6 +108,7 @@ export default function App() {
     if (!activeProject?.id || !log?.id) return;
 
     try {
+      const projectSpecs = resolveProjectSpecs(activeProject, constants);
       const projectEvent = makeProjectMirrorEvent(activeProject, constants);
       if (projectEvent) await upsertMirrorRecord(projectEvent);
 
@@ -114,7 +117,6 @@ export default function App() {
         await upsertMirrorRecord(mirrorEvent.event);
       }
 
-      const projectSpecs = activeProject.projectSpecs || constants.projectSpecs || null;
       const auditResult = await runPassiveAudit({
         projectId: activeProject.id,
         projectSpecs,
