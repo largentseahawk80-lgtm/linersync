@@ -446,6 +446,7 @@ export default function App() {
           activeProject={activeProject}
           logs={logs}
           setTab={setTab}
+          status={status}
         />
       ) : null}
 
