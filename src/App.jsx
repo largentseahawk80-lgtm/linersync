@@ -1,93 +1,107 @@
+import React, { useState, useEffect } from 'react';
+import Storage from './lib/storage';
+import ProjectList from './components/ProjectList';
+import LogTable from './components/LogTable';
+import ControlPanel from './components/ControlPanel';
+import SyncStatus from './components/SyncStatus';
+import ActiveContextBar from './components/ActiveContextBar';
+import './ui-shell.css';
+import './styles.css';
 
+function App() {
   const [activeProject, setActiveProject] = useState(Storage.getActiveProject());
   const [projects, setProjects] = useState(Storage.getProjects());
-  const [records, setRecords] = useState([]);
+  const [logs, setLogs] = useState([]);
   const [constants, setConstants] = useState([]);
   const [points, setPoints] = useState([]);
   const [view, setView] = useState("dashboard");
   const [session, setSession] = useState(null);
 
   useEffect(() => {
-    Storage.saveProjects(projects);
-  }, [projects]);
-
-  useEffect(() => {
     if (activeProject) {
       const state = Storage.loadProjectState(activeProject.id);
-      setRecords(state.logs || []);
+      setLogs(state.logs || []);
       setConstants(state.constants || []);
       setPoints(state.points || []);
     }
   }, [activeProject]);
 
-  const saveLog = (type) => {
-    const newRecord = {
-      ...session,
-      id: crypto.randomUUID(),
-      type,
-      projectId: activeProject?.id || 'N/A',
-      projectName: activeProject?.name || 'N/A',
-      roll: activeProject?.roll || 'N/A',
-      panel: activeProject?.panel || 'N/A',
-      seam: activeProject?.seam || 'N/A',
-      qcTech: activeProject?.qcTech || 'N/A'
+  const handleAddLog = (newLog) => {
+    const logWithContext = {
+      ...newLog,
+      roll: activeProject?.constants?.roll || '',
+      panel: activeProject?.constants?.panel || '',
+      seam: activeProject?.constants?.seam || '',
+      qcTech: activeProject?.constants?.qcTech || '',
+      timestamp: new Date().toISOString()
     };
-    const updatedLogs = [newRecord, ...records];
-    setRecords(updatedLogs);
-    if (activeProject) {
-      Storage.saveProjectState(activeProject.id, { 
-        constants, 
-        logs: updatedLogs, 
-        points 
-      });
-    }
-    setSession(null);
-    setView("logs");
+    const updatedLogs = [...logs, logWithContext];
+    setLogs(updatedLogs);
+    Storage.saveProjectState(activeProject.id, { constants, logs: updatedLogs, points });
   };
 
-  const exportCSV = () => {
-    const csvContent = "data:text/csv;charset=utf-8," + 
-      "ID,Type,Project,Roll,Panel,Seam,QC Tech\n" +
-      records.map(r => `${r.id},${r.type},${r.projectName},${r.roll},${r.panel},${r.seam},${r.qcTech}`).join("\n");
+  const handleExportCSV = () => {
+    const headers = ['Timestamp', 'Roll', 'Panel', 'Seam', 'QC Tech', 'Value'];
+    const rows = logs.map(log => [
+      log.timestamp,
+      activeProject?.constants?.roll || '',
+      activeProject?.constants?.panel || '',
+      activeProject?.constants?.seam || '',
+      activeProject?.constants?.qcTech || '',
+      log.value
+    ]);
+    
+    let csvContent = "data:text/csv;charset=utf-8," 
+      + headers.join(",") + "\n"
+      + rows.map(e => e.join(",")).join("\n");
+      
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `linersync_${activeProject?.name || 'export'}.csv`);
+    link.setAttribute("download", `${activeProject.name}_logs.csv`);
     document.body.appendChild(link);
     link.click();
   };
 
-  const renderView = () => {
-    if (!activeProject && view !== "dashboard") {
-      return <Dashboard projects={projects} setProjects={setProjects} setActiveProject={setActiveProject} />;
-    }
-
-    switch (view) {
-      case "dashboard":
-        return <Dashboard projects={projects} setProjects={setProjects} setActiveProject={setActiveProject} />;
-      case "project":
-        return <ProjectHome project={activeProject} setView={setView} setSession={setSession} />;
-      case "capture":
-        return <TapCapture session={session} onSave={saveLog} onCancel={() => setView("project")} />;
-      case "verify":
-        return <VerifyEntry session={session} onSave={saveLog} onCancel={() => setView("project")} />;
-      case "logs":
-        return <Logs records={records} />;
-      case "exports":
-        return <Exports onExport={exportCSV} />;
-      default:
-        return <Dashboard projects={projects} setProjects={setProjects} setActiveProject={setActiveProject} />;
-    }
-  };
-
   return (
-    <AppShell 
-      view={view} 
-      setView={setView} 
-      activeProject={activeProject}
-      setActiveProject={setActiveProject}
-    >
-      {renderView()}
-    </AppShell>
+    <div className="app-container">
+      <header className="header">
+        <h1>LinerSync</h1>
+        <SyncStatus />
+      </header>
+      
+      <main className="main-content">
+        {activeProject && (
+          <ActiveContextBar 
+            roll={activeProject?.constants?.roll}
+            panel={activeProject?.constants?.panel}
+            seam={activeProject?.constants?.seam}
+            qcTech={activeProject?.constants?.qcTech}
+          />
+        )}
+        
+        {view === "dashboard" ? (
+          <div className="dashboard">
+            <ProjectList 
+              projects={projects} 
+              onSelect={setActiveProject}
+              activeProjectId={activeProject?.id}
+            />
+            {activeProject && (
+              <>
+                <ControlPanel onAddLog={handleAddLog} onExport={handleExportCSV} />
+                <LogTable logs={logs} />
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="settings">
+            {/* Settings View */}
+          </div>
+        )}
+      </main>
+    </div>
   );
 }
+
+export default App;
