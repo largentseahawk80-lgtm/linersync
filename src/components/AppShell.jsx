@@ -43,7 +43,7 @@ function GpsShellMeter({ gpsMeter = {} }) {
           border: "1px solid #213b63",
           borderRadius: 12,
           background: "#081a36",
-          minWidth: 150,
+          minWidth: 120,
           justifyContent: "space-between",
           cursor: "pointer"
         }}
@@ -70,20 +70,22 @@ function GpsShellMeter({ gpsMeter = {} }) {
       {open ? (
         <div
           style={{
-            position: "absolute",
-            right: 0,
-            top: "calc(100% + 8px)",
-            zIndex: 50,
-            width: 280,
+            position: "fixed",
+            left: 8,
+            top: 92,
+            zIndex: 999,
+            width: "min(320px, calc(100vw - 16px))",
+            maxWidth: "calc(100vw - 16px)",
             border: "1px solid #213b63",
             borderRadius: 14,
             background: "#061426",
-            boxShadow: "0 18px 45px rgba(0,0,0,0.35)",
-            padding: 14,
-            color: "#d7e3f4"
+            boxShadow: "0 18px 45px rgba(0,0,0,0.45)",
+            padding: 12,
+            color: "#d7e3f4",
+            overflow: "hidden"
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
             <strong style={{ color: gpsVisual.color }}>GPS {gpsVisual.label}</strong>
             <button
               type="button"
@@ -93,7 +95,7 @@ function GpsShellMeter({ gpsMeter = {} }) {
                 background: "#081a36",
                 color: "#d7e3f4",
                 borderRadius: 8,
-                padding: "3px 8px",
+                padding: "4px 10px",
                 cursor: "pointer"
               }}
             >
@@ -101,7 +103,7 @@ function GpsShellMeter({ gpsMeter = {} }) {
             </button>
           </div>
 
-          <div style={{ display: "grid", gap: 8, fontSize: 12 }}>
+          <div style={{ display: "grid", gap: 7, fontSize: 12, wordBreak: "break-word" }}>
             <div><strong>Accuracy:</strong> {gpsMeter.accuracyFt == null ? "--" : `±${gpsMeter.accuracyFt} ft`}</div>
             <div><strong>Latitude:</strong> {formatCoord(gpsMeter.lat)}</div>
             <div><strong>Longitude:</strong> {formatCoord(gpsMeter.lng)}</div>
