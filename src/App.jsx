@@ -12,6 +12,9 @@ import { getHighAccuracyPosition } from './lib/gps';
 import { buildMythosAudit } from './lib/mythos';
 import { colorForType, uid } from './lib/records';
 import { download, toCsv, toKml } from './lib/exports';
+import { runPassiveAudit } from './core/audit/auditTrigger.js';
+import { makeMirrorEventFromLog } from './core/sync/logToMirrorEvent.js';
+import { upsertMirrorRecord } from './core/sync/shadowMirror.js';
 
 const emptyCapture = () => null;
 
@@ -21,6 +24,29 @@ function normalizeImportedState(raw) {
     constants: raw.constants || defaultState.constants,
     logs: Array.isArray(raw.logs) ? raw.logs : [],
     points: Array.isArray(raw.points) ? raw.points : []
+  };
+}
+
+function makeProjectMirrorEvent(project, constants = {}) {
+  if (!project?.id) return null;
+
+  return {
+    eventId: `APP-SAVE-PROJECT-${project.id}`,
+    eventType: 'SAVE_RECORD',
+    recordType: 'PROJECT',
+    projectId: project.id,
+    payload: {
+      id: project.id,
+      data: {
+        projectId: project.id,
+        name: project.name || constants.project || 'LinerSync',
+        projectName: project.name || constants.project || 'LinerSync',
+        status: 'ACTIVE',
+        projectSpecs: project.projectSpecs || constants.projectSpecs || null
+      }
+    },
+    timestamp: new Date().toISOString(),
+    origin: 'linersync-app-passive-audit'
   };
 }
 
@@ -74,6 +100,39 @@ export default function App() {
       logs: nextLogs,
       points: nextPoints
     });
+  };
+
+  const syncLogToMirrorAndAudit = async (log) => {
+    if (!activeProject?.id || !log?.id) return;
+
+    try {
+      const projectEvent = makeProjectMirrorEvent(activeProject, constants);
+      if (projectEvent) await upsertMirrorRecord(projectEvent);
+
+      const mirrorEvent = makeMirrorEventFromLog(log);
+      if (mirrorEvent.status === 'READY') {
+        await upsertMirrorRecord(mirrorEvent.event);
+      }
+
+      const projectSpecs = activeProject.projectSpecs || constants.projectSpecs || null;
+      const auditResult = await runPassiveAudit({
+        projectId: activeProject.id,
+        projectSpecs,
+        reason: `POST_${log.status}_${log.type}`
+      });
+
+      if (auditResult.status === 'PASS') {
+        setStatus(`${log.status === 'LOCKED' ? 'Locked' : 'Saved'} ${log.type} • Audit PASS`);
+      } else if (auditResult.status === 'WARNING' || auditResult.status === 'CRITICAL') {
+        setStatus(`${log.status === 'LOCKED' ? 'Locked' : 'Saved'} ${log.type} • Audit ${auditResult.status}`);
+      } else if (auditResult.status === 'ERROR') {
+        setStatus(`${log.status === 'LOCKED' ? 'Locked' : 'Saved'} ${log.type} • Audit error`);
+      } else {
+        setStatus(`${log.status === 'LOCKED' ? 'Locked' : 'Saved'} ${log.type} • Mirror synced`);
+      }
+    } catch (error) {
+      setStatus(`${log.status === 'LOCKED' ? 'Locked' : 'Saved'} ${log.type} • Mirror sync warning`);
+    }
   };
 
   const openProject = (project) => {
@@ -231,6 +290,7 @@ export default function App() {
     setLogs(nextLogs);
     setPoints(nextPoints);
     saveProjectState(nextLogs, nextPoints, constants);
+    void syncLogToMirrorAndAudit(log);
     setCaptureSession(null);
     setOverrideReasonState('');
     setTab('dashboard');
