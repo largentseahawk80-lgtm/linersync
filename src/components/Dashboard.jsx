@@ -1,15 +1,27 @@
 import React, { useMemo } from "react";
 
+function getAuditLabel(status = "") {
+  if (status.includes("Audit PASS")) return "PASS";
+  if (status.includes("Audit WARNING")) return "WARNING";
+  if (status.includes("Audit CRITICAL")) return "CRITICAL";
+  if (status.includes("Audit error")) return "ERROR";
+  if (status.includes("Audit skipped")) return "SKIPPED";
+  if (status.includes("Mirror synced")) return "SYNCED";
+  return "STANDBY";
+}
+
 export default function Dashboard({
   startCapture,
   visible = true,
   activeProject = null,
   logs = [],
   setTab,
-  orphanCount = 0
+  orphanCount = 0,
+  status = "Ready"
 }) {
   const latestLogs = useMemo(() => logs.slice(0, 5), [logs]);
   const lockedCount = useMemo(() => logs.filter((l) => l.status === "LOCKED").length, [logs]);
+  const auditLabel = useMemo(() => getAuditLabel(status), [status]);
 
   if (!visible) return null;
 
@@ -31,6 +43,14 @@ export default function Dashboard({
       <div className="dashboard-grid">
         <div className="card stat-card"><span>Total Logs</span><strong>{logs.length}</strong></div>
         <div className="card stat-card"><span>Locked</span><strong>{lockedCount}</strong></div>
+        <div className="card stat-card"><span>Audit Status</span><strong>{auditLabel}</strong></div>
+      </div>
+
+      <div className="card">
+        <div className="section-title-row">
+          <h3>Latest Audit</h3>
+        </div>
+        <p>{status}</p>
       </div>
 
       <div className="card">
