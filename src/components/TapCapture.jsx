@@ -20,6 +20,14 @@ export default function TapCapture({
             Capture GPS/time first, then choose Repair, Seam, Panel, Roll, Wedge Test, Extrusion, Air Test, DT, or Daily.
           </p>
 
+          <div className="active-context-bar">
+            <p><strong>Project:</strong> {activeProject?.name || 'None'}</p>
+            <p><strong>Roll:</strong> {activeProject?.roll || 'N/A'}</p>
+            <p><strong>Panel:</strong> {activeProject?.panel || 'N/A'}</p>
+            <p><strong>Seam:</strong> {activeProject?.seam || 'N/A'}</p>
+            <p><strong>QC Tech:</strong> {activeProject?.qcTech || 'N/A'}</p>
+          </div>
+
           <button
             className="project-create-btn"
             onClick={onStartCapture}
@@ -81,4 +89,4 @@ export default function TapCapture({
       </div>
     </section>
   );
-}
+};
