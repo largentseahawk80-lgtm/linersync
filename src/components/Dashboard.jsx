@@ -1,6 +1,8 @@
 import React, { useMemo } from "react";
 
-function getAuditLabel(status = "") {
+function getAuditLabel(status = "", auditReport = null) {
+  const reportStatus = String(auditReport?.status || "").toUpperCase();
+  if (["PASS", "WARNING", "CRITICAL"].includes(reportStatus)) return reportStatus;
   if (status.includes("Audit PASS")) return "PASS";
   if (status.includes("Audit WARNING")) return "WARNING";
   if (status.includes("Audit CRITICAL")) return "CRITICAL";
@@ -10,6 +12,16 @@ function getAuditLabel(status = "") {
   return "STANDBY";
 }
 
+function getHealthText(auditLabel) {
+  if (auditLabel === "PASS") return "Ready for export checks";
+  if (auditLabel === "WARNING") return "Warnings found";
+  if (auditLabel === "CRITICAL") return "Fix before final export";
+  if (auditLabel === "ERROR") return "Audit needs attention";
+  if (auditLabel === "SKIPPED") return "Audit skipped";
+  if (auditLabel === "SYNCED") return "Mirror synced";
+  return "Waiting for next locked log";
+}
+
 export default function Dashboard({
   startCapture,
   visible = true,
@@ -17,11 +29,20 @@ export default function Dashboard({
   logs = [],
   setTab,
   orphanCount = 0,
-  status = "Ready"
+  status = "Ready",
+  auditReport = null,
+  gpsMeter = null
 }) {
   const latestLogs = useMemo(() => logs.slice(0, 5), [logs]);
   const lockedCount = useMemo(() => logs.filter((l) => l.status === "LOCKED").length, [logs]);
-  const auditLabel = useMemo(() => getAuditLabel(status), [status]);
+  const auditLabel = useMemo(() => getAuditLabel(status, auditReport), [status, auditReport]);
+  const criticalCount = auditReport?.summary?.criticalCount || 0;
+  const warningCount = auditReport?.summary?.warningCount || 0;
+  const unresolvedRepairs = auditReport?.summary?.unresolvedRepairs || 0;
+  const exportBlocked = Boolean(auditReport?.exportBlocked || auditLabel === "CRITICAL");
+  const lastAuditTime = auditReport?.generatedAt
+    ? new Date(auditReport.generatedAt).toLocaleString()
+    : "Not run yet";
 
   if (!visible) return null;
 
@@ -44,6 +65,23 @@ export default function Dashboard({
         <div className="card stat-card"><span>Total Logs</span><strong>{logs.length}</strong></div>
         <div className="card stat-card"><span>Locked</span><strong>{lockedCount}</strong></div>
         <div className="card stat-card"><span>Audit Status</span><strong>{auditLabel}</strong></div>
+      </div>
+
+      <div className="card">
+        <div className="section-title-row">
+          <h3>Project Health</h3>
+          <strong>{auditLabel}</strong>
+        </div>
+        <p>{getHealthText(auditLabel)}</p>
+        <div className="dashboard-grid">
+          <div className="stat-card"><span>Critical</span><strong>{criticalCount}</strong></div>
+          <div className="stat-card"><span>Warnings</span><strong>{warningCount}</strong></div>
+          <div className="stat-card"><span>Repairs Open</span><strong>{unresolvedRepairs}</strong></div>
+        </div>
+        <p className={exportBlocked ? "warning-text" : "muted"}>
+          Export blocked: {exportBlocked ? "YES" : "NO"} · Last audit: {lastAuditTime}
+        </p>
+        {gpsMeter?.error ? <p className="warning-text">GPS warning: {gpsMeter.error}</p> : null}
       </div>
 
       <div className="card">
