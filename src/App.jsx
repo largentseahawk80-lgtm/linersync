@@ -128,7 +128,9 @@ export default function App() {
       } else if (auditResult.status === 'WARNING' || auditResult.status === 'CRITICAL') {
         setStatus(`${log.status === 'LOCKED' ? 'Locked' : 'Saved'} ${log.type} • Audit ${auditResult.status}`);
       } else if (auditResult.status === 'ERROR') {
-        setStatus(`${log.status === 'LOCKED' ? 'Locked' : 'Saved'} ${log.type} • Audit error`);
+        setStatus(`${log.status === 'LOCKED' ? 'Locked' : 'Saved'} ${log.type} • Audit error: ${auditResult.reason || 'unknown'}`);
+      } else if (auditResult.status === 'SKIPPED') {
+        setStatus(`${log.status === 'LOCKED' ? 'Locked' : 'Saved'} ${log.type} • Audit skipped: ${auditResult.reason || 'unknown'}`);
       } else {
         setStatus(`${log.status === 'LOCKED' ? 'Locked' : 'Saved'} ${log.type} • Mirror synced`);
       }
