@@ -26,7 +26,8 @@ function normalizeImportedState(raw) {
     constants: raw.constants || defaultState.constants,
     logs: Array.isArray(raw.logs) ? raw.logs : [],
     points: Array.isArray(raw.points) ? raw.points : [],
-    auditStatus: raw.auditStatus || defaultState.auditStatus
+    auditStatus: raw.auditStatus || defaultState.auditStatus,
+    auditReport: raw.auditReport || null
   };
 }
 
@@ -64,6 +65,7 @@ export default function App() {
   const [captureSession, setCaptureSession] = useState(emptyCapture);
   const [overrideReason, setOverrideReasonState] = useState('');
   const [status, setStatus] = useState('Ready');
+  const [auditReport, setAuditReport] = useState(null);
   const [gpsMeter, setGpsMeter] = useState({
     supported: typeof navigator !== 'undefined' && !!navigator.geolocation,
     accuracyFt: null,
@@ -129,6 +131,7 @@ export default function App() {
       setPoints([]);
       setConstants(defaultState.constants);
       setCaptureSession(null);
+      setAuditReport(null);
       setTab('projects');
       return;
     }
@@ -138,23 +141,26 @@ export default function App() {
     setPoints(state.points || []);
     setConstants(state.constants || defaultState.constants);
     setCaptureSession(null);
+    setAuditReport(state.auditReport || null);
     setStatus(state.auditStatus || 'Project loaded');
   }, [activeProjectId]);
 
-  const saveProjectState = (nextLogs = logs, nextPoints = points, nextConstants = constants, nextAuditStatus = status) => {
+  const saveProjectState = (nextLogs = logs, nextPoints = points, nextConstants = constants, nextAuditStatus = status, nextAuditReport = auditReport) => {
     if (!activeProjectId) return;
     Storage.saveProjectState(activeProjectId, {
       constants: nextConstants,
       logs: nextLogs,
       points: nextPoints,
-      auditStatus: nextAuditStatus || defaultState.auditStatus
+      auditStatus: nextAuditStatus || defaultState.auditStatus,
+      auditReport: nextAuditReport || null
     });
   };
 
-  const setAndSaveStatus = (nextStatus) => {
+  const setAndSaveStatus = (nextStatus, nextAuditReport = auditReport) => {
     setStatus(nextStatus);
     if (activeProjectId) {
       Storage.saveProjectData(activeProjectId, 'auditStatus', nextStatus);
+      Storage.saveProjectData(activeProjectId, 'auditReport', nextAuditReport || null);
     }
   };
 
@@ -177,19 +183,22 @@ export default function App() {
         reason: `POST_${log.status}_${log.type}`
       });
 
+      const latestAuditReport = auditResult.auditReport || null;
+      setAuditReport(latestAuditReport);
+
       if (auditResult.status === 'PASS') {
-        setAndSaveStatus(`${log.status === 'LOCKED' ? 'Locked' : 'Saved'} ${log.type} • Audit PASS`);
+        setAndSaveStatus(`${log.status === 'LOCKED' ? 'Locked' : 'Saved'} ${log.type} • Audit PASS`, latestAuditReport);
       } else if (auditResult.status === 'WARNING' || auditResult.status === 'CRITICAL') {
-        setAndSaveStatus(`${log.status === 'LOCKED' ? 'Locked' : 'Saved'} ${log.type} • Audit ${auditResult.status}`);
+        setAndSaveStatus(`${log.status === 'LOCKED' ? 'Locked' : 'Saved'} ${log.type} • Audit ${auditResult.status}`, latestAuditReport);
       } else if (auditResult.status === 'ERROR') {
-        setAndSaveStatus(`${log.status === 'LOCKED' ? 'Locked' : 'Saved'} ${log.type} • Audit error: ${auditResult.reason || 'unknown'}`);
+        setAndSaveStatus(`${log.status === 'LOCKED' ? 'Locked' : 'Saved'} ${log.type} • Audit error: ${auditResult.reason || 'unknown'}`, latestAuditReport);
       } else if (auditResult.status === 'SKIPPED') {
-        setAndSaveStatus(`${log.status === 'LOCKED' ? 'Locked' : 'Saved'} ${log.type} • Audit skipped: ${auditResult.reason || 'unknown'}`);
+        setAndSaveStatus(`${log.status === 'LOCKED' ? 'Locked' : 'Saved'} ${log.type} • Audit skipped: ${auditResult.reason || 'unknown'}`, latestAuditReport);
       } else {
-        setAndSaveStatus(`${log.status === 'LOCKED' ? 'Locked' : 'Saved'} ${log.type} • Mirror synced`);
+        setAndSaveStatus(`${log.status === 'LOCKED' ? 'Locked' : 'Saved'} ${log.type} • Mirror synced`, latestAuditReport);
       }
     } catch (error) {
-      setAndSaveStatus(`${log.status === 'LOCKED' ? 'Locked' : 'Saved'} ${log.type} • Mirror sync warning`);
+      setAndSaveStatus(`${log.status === 'LOCKED' ? 'Locked' : 'Saved'} ${log.type} • Mirror sync warning`, auditReport);
     }
   };
 
@@ -209,6 +218,7 @@ export default function App() {
   const exitProject = () => {
     Storage.setActiveProjectId('');
     setActiveProjectId('');
+    setAuditReport(null);
     setStatus('Select or create a project');
   };
 
@@ -347,7 +357,7 @@ export default function App() {
 
     setLogs(nextLogs);
     setPoints(nextPoints);
-    saveProjectState(nextLogs, nextPoints, constants, status);
+    saveProjectState(nextLogs, nextPoints, constants, status, auditReport);
     void syncLogToMirrorAndAudit(log);
     setCaptureSession(null);
     setOverrideReasonState('');
@@ -379,7 +389,7 @@ export default function App() {
     };
     const nextLogs = [copy, ...logs];
     setLogs(nextLogs);
-    saveProjectState(nextLogs, points, constants, status);
+    saveProjectState(nextLogs, points, constants, status, auditReport);
     setStatus('Copied log as draft');
   };
 
@@ -388,14 +398,14 @@ export default function App() {
     const nextPoints = points.filter((point) => point.logId !== logId);
     setLogs(nextLogs);
     setPoints(nextPoints);
-    saveProjectState(nextLogs, nextPoints, constants, status);
+    saveProjectState(nextLogs, nextPoints, constants, status, auditReport);
     setStatus('Deleted log');
   };
 
   const lockLog = (log) => {
     const nextLogs = logs.map((item) => item.id === log.id ? { ...item, status: 'LOCKED' } : item);
     setLogs(nextLogs);
-    saveProjectState(nextLogs, points, constants, status);
+    saveProjectState(nextLogs, points, constants, status, auditReport);
     setStatus('Locked log');
   };
 
@@ -418,7 +428,7 @@ export default function App() {
       ...points
     ];
     setPoints(nextPoints);
-    saveProjectState(logs, nextPoints, constants, status);
+    saveProjectState(logs, nextPoints, constants, status, auditReport);
     setStatus('Manual map point added');
   };
 
@@ -426,7 +436,7 @@ export default function App() {
   const exportKml = () => download(`${activeProject?.name || 'linersync'}-asbuilt.kml`, toKml(logs), 'application/vnd.google-earth.kml+xml');
   const exportJson = () => download(
     `${activeProject?.name || 'linersync'}-backup.json`,
-    JSON.stringify({ project: activeProject, constants, logs, points, auditStatus: status }, null, 2),
+    JSON.stringify({ project: activeProject, constants, logs, points, auditStatus: status, auditReport }, null, 2),
     'application/json;charset=utf-8;'
   );
 
@@ -442,6 +452,7 @@ export default function App() {
         setLogs(imported.logs);
         setPoints(imported.points);
         setStatus(imported.auditStatus || defaultState.auditStatus);
+        setAuditReport(imported.auditReport || null);
         Storage.saveProjectState(activeProjectId, imported);
         setStatus(imported.auditStatus || 'JSON backup imported');
       } catch (error) {
@@ -503,6 +514,7 @@ export default function App() {
           logs={logs}
           setTab={setTab}
           status={status}
+          auditReport={auditReport}
           gpsMeter={gpsMeter}
         />
       ) : null}
