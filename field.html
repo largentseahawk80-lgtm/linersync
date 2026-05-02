@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#04101d" />
+  <title>LinerSync Field Emergency</title>
+  <style>
+    :root{--bg:#04101d;--panel:#0b1728;--card:#101f34;--line:rgba(255,255,255,.13);--text:#f6f8fb;--muted:#9fb0c8;--orange:#ff8e18;--green:#22c55e;--red:#ef4444;--blue:#38bdf8}
+    *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:radial-gradient(circle at top left,#0d2b4e,#061326 46%,#04101d);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}button,input,select,textarea{font:inherit}button{border:1px solid var(--line);background:#13233a;color:var(--text);border-radius:14px;padding:12px 14px;font-weight:900;min-height:46px}button.primary{background:linear-gradient(180deg,#ffb25a,#ff8e18);color:#111;border:none}button.green{background:var(--green);color:#05210f;border:none}button.red{background:#35131a;color:#fecaca;border-color:#7f1d1d}input,select,textarea{width:100%;border:1px solid var(--line);border-radius:14px;background:#081525;color:var(--text);padding:12px}textarea{min-height:82px}.wrap{padding:12px 12px 84px;max-width:1180px;margin:auto}.top{position:sticky;top:0;z-index:5;background:rgba(4,16,29,.94);backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:22px;padding:12px;margin-bottom:12px;display:flex;justify-content:space-between;gap:10px;align-items:center}.brand{display:flex;gap:10px;align-items:center}.mark{width:52px;height:52px;border:3px solid var(--orange);border-radius:16px;display:grid;place-items:center;color:var(--orange);font-weight:1000}.brand h1{font-size:24px;line-height:1;margin:0;letter-spacing:-.05em}.brand p,.tiny{margin:0;color:var(--muted);font-size:11px;text-transform:uppercase;font-weight:900;letter-spacing:.08em}.tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px}.tabs button.active{background:var(--orange);color:#111;border:none}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.cards{display:grid;gap:10px}.card,.log{background:rgba(16,31,52,.92);border:1px solid var(--line);border-radius:20px;padding:14px}.card h2{font-size:28px;margin:0 0 8px;letter-spacing:-.05em}.card h3{margin:0 0 10px}.muted{color:var(--muted)}.row{display:flex;gap:8px;flex-wrap:wrap}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.kpi{background:#ffffff08;border:1px solid var(--line);border-radius:18px;padding:12px}.kpi strong{display:block;font-size:28px}.log strong{font-size:18px}.log p{margin:5px 0;color:var(--muted)}.status{position:fixed;left:12px;right:12px;bottom:10px;max-width:760px;margin:auto;background:#071426;border:1px solid var(--line);border-radius:16px;padding:10px;text-align:center;color:var(--muted);font-weight:900}.pill{display:inline-block;padding:4px 8px;border:1px solid var(--line);border-radius:999px;color:#ffb25a;font-size:12px;font-weight:900}.hidden{display:none!important}@media(max-width:760px){.top{align-items:flex-start}.tabs{grid-template-columns:1fr 1fr}.grid,.kpis{grid-template-columns:1fr}.row{display:grid}.row button{width:100%}.brand h1{font-size:20px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div class="brand"><div class="mark">LS</div><div><h1>LinerSync Field</h1><p>Emergency standalone live app</p></div></div>
+      <div><div class="tiny">Active Project</div><strong id="activeProjectName">-</strong></div>
+    </header>
+
+    <nav class="tabs">
+      <button id="tab-dashboard" onclick="setTab('dashboard')">Dashboard</button>
+      <button id="tab-project" onclick="setTab('project')">Project</button>
+      <button id="tab-capture" onclick="setTab('capture')">Capture</button>
+      <button id="tab-logs" onclick="setTab('logs')">Logs</button>
+      <button id="tab-export" onclick="setTab('export')">Export</button>
+    </nav>
+
+    <main id="dashboard" class="page cards">
+      <section class="card"><h2>Field Dashboard</h2><p class="muted">Known-working fallback page. Saves to this browser, captures GPS, logs QC records, and exports CSV/JSON.</p><div class="kpis"><div class="kpi"><strong id="kpiLogs">0</strong><span class="tiny">Logs</span></div><div class="kpi"><strong id="kpiGps">0</strong><span class="tiny">GPS Logs</span></div><div class="kpi"><strong id="kpiLocked">0</strong><span class="tiny">Locked</span></div><div class="kpi"><strong id="kpiDraft">0</strong><span class="tiny">Draft</span></div></div></section>
+      <section class="card"><h3>Latest Logs</h3><div id="latestLogs" class="cards"></div></section>
+    </main>
+
+    <main id="project" class="page cards hidden">
+      <section class="card"><h2>Project Setup</h2><div class="grid" id="projectFields"></div><div class="row" style="margin-top:10px"><button class="primary" onclick="saveProject()">Save Project Data</button><button onclick="newProject()">New Clean Project</button></div></section>
+    </main>
+
+    <main id="capture" class="page cards hidden">
+      <section class="card"><h2>Tap Capture</h2><div class="grid"><label>Type<select id="type" onchange="drawDynamicFields()"></select></label><label>Status<select id="recStatus"><option>DRAFT</option><option>LOCKED</option></select></label><label>Quick ID<input id="quickId" placeholder="Repair / seam / panel / DT" /></label></div><div class="grid" id="dynamicFields" style="margin-top:10px"></div><label style="display:block;margin-top:10px">Notes<textarea id="notes" placeholder="Field notes"></textarea></label><div class="row" style="margin-top:10px"><button onclick="captureGps()">Capture GPS</button><button onclick="saveRecord()" class="green">Save Record</button><button onclick="clearCapture()">Clear Form</button></div><p class="muted" id="gpsStatus">No GPS captured yet.</p></section>
+    </main>
+
+    <main id="logs" class="page cards hidden">
+      <section class="card"><h2>Logs</h2><input id="search" placeholder="Search logs" oninput="render()" /></section><div id="logList" class="cards"></div>
+    </main>
+
+    <main id="export" class="page cards hidden">
+      <section class="card"><h2>Export Center</h2><p class="muted">Exports current local project data from this device.</p><div class="row"><button class="primary" onclick="downloadCsv()">Download CSV</button><button onclick="downloadJson()">Download JSON Backup</button><button onclick="copySummary()">Copy Summary</button></div></section>
+    </main>
+  </div>
+  <div class="status" id="status">Ready.</div>
+
+<script>
+const KEY='linersync_emergency_field_v1';
+const TYPES=['Repair','Seam','Panel','Roll','Wedge Test','Extrusion','Air Test','DT','Daily'];
+const PROJECT_FIELDS=['project','client','qcTech','installer','crew','activeRoll','activePanel','activeSeam','linerType','thickness','weather'];
+const FIELDS={Repair:['repairId','repairType','size','eastATFt','southATFt','verifiedBy'],Seam:['seam','panelA','panelB','welder','weldType','station'],Panel:['panel','roll','direction','width','length','area'],Roll:['roll','lot','manufacturer','width','length','certStatus'],'Wedge Test':['seam','machine','temperature','speed','peel','shear','result'],Extrusion:['repairId','extruder','rodLot','preheat','result'],'Air Test':['seam','startPsi','endPsi','holdMinutes','result'],DT:['dtNumber','seam','station','labNumber','result'],Daily:['crew','weather','production','issues']};
+let gps=null;
+let state=load();
+function load(){try{return JSON.parse(localStorage.getItem(KEY))||blank()}catch{return blank()}}
+function blank(){return{project:{project:'New LinerSync Project',client:'',qcTech:'',installer:'',crew:'',activeRoll:'',activePanel:'',activeSeam:'',linerType:'HDPE',thickness:'60 mil',weather:''},logs:[],tab:'dashboard'}}
+function persist(){localStorage.setItem(KEY,JSON.stringify(state));}
+function setStatus(t){document.getElementById('status').textContent=t;}
+function setTab(t){state.tab=t;persist();render();}
+function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));}
+function init(){document.getElementById('type').innerHTML=TYPES.map(t=>`<option>${t}</option>`).join('');document.getElementById('projectFields').innerHTML=PROJECT_FIELDS.map(k=>`<label>${k}<input id="p_${k}" /></label>`).join('');drawDynamicFields();render();}
+function drawDynamicFields(){const t=document.getElementById('type').value||'Repair';document.getElementById('dynamicFields').innerHTML=(FIELDS[t]||[]).map(k=>`<label>${k}<input id="f_${k}" /></label>`).join('');prefill();}
+function prefill(){const p=state.project;['roll','panel','panelA','seam','weather','crew'].forEach(k=>{const el=document.getElementById('f_'+k);if(!el)return;if(k==='roll')el.value=p.activeRoll||'';if(k==='panel'||k==='panelA')el.value=p.activePanel||'';if(k==='seam')el.value=p.activeSeam||'';if(k==='weather')el.value=p.weather||'';if(k==='crew')el.value=p.crew||p.installer||'';});const hm=document.getElementById('f_holdMinutes');if(hm&&!hm.value)hm.value='5';}
+function saveProject(){PROJECT_FIELDS.forEach(k=>state.project[k]=document.getElementById('p_'+k).value);persist();setStatus('Project data saved.');render();}
+function newProject(){if(!confirm('Start a clean project on this device? Current local logs will be replaced unless exported first.'))return;state=blank();gps=null;persist();setStatus('New clean project started.');render();}
+function captureGps(){if(!navigator.geolocation){setStatus('GPS unavailable in this browser.');return}setStatus('Requesting GPS...');navigator.geolocation.getCurrentPosition(p=>{gps={lat:p.coords.latitude,lng:p.coords.longitude,accuracyFt:Math.round((p.coords.accuracy||0)*3.28084),time:new Date().toLocaleString()};document.getElementById('gpsStatus').textContent=`GPS ${gps.lat.toFixed(6)}, ${gps.lng.toFixed(6)} ±${gps.accuracyFt} ft`;setStatus('GPS captured.');},()=>setStatus('GPS blocked. Allow location permission.'),{enableHighAccuracy:true,timeout:10000,maximumAge:0});}
+function saveRecord(){const type=document.getElementById('type').value;const fields={};(FIELDS[type]||[]).forEach(k=>fields[k]=document.getElementById('f_'+k)?.value||'');const rec={id:'LS-'+Date.now().toString(36),type,status:document.getElementById('recStatus').value,quickId:document.getElementById('quickId').value,fields,notes:document.getElementById('notes').value,time:new Date().toLocaleString(),gps,project:{...state.project}};state.logs.unshift(rec);gps=null;persist();clearCapture();setTab('logs');setStatus('Record saved.');}
+function clearCapture(){document.getElementById('quickId').value='';document.getElementById('notes').value='';document.getElementById('gpsStatus').textContent='No GPS captured yet.';drawDynamicFields();}
+function delLog(id){state.logs=state.logs.filter(l=>l.id!==id);persist();render();}
+function lockLog(id){state.logs=state.logs.map(l=>l.id===id?{...l,status:'LOCKED'}:l);persist();render();}
+function csv(){const headers=['id','type','status','time','project','roll','panel','seam','lat','lng','accuracyFt','fields','notes'];const rows=state.logs.map(l=>[l.id,l.type,l.status,l.time,state.project.project,l.fields.roll||l.project.activeRoll,l.fields.panel||l.project.activePanel,l.fields.seam||l.project.activeSeam,l.gps?.lat||'',l.gps?.lng||'',l.gps?.accuracyFt||'',JSON.stringify(l.fields),l.notes]);return [headers.join(','),...rows.map(r=>r.map(v=>'"'+String(v??'').replaceAll('"','""')+'"').join(','))].join('\n');}
+function download(name,text,mime){const b=new Blob([text],{type:mime});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=name;a.click();URL.revokeObjectURL(u)}
+function downloadCsv(){download('linersync_field_logs.csv',csv(),'text/csv')}
+function downloadJson(){download('linersync_field_backup.json',JSON.stringify(state,null,2),'application/json')}
+function copySummary(){navigator.clipboard?.writeText(`${state.project.project}: ${state.logs.length} logs, ${state.logs.filter(l=>l.gps).length} GPS records`);setStatus('Summary copied.');}
+function render(){document.querySelectorAll('.page').forEach(p=>p.classList.add('hidden'));document.getElementById(state.tab||'dashboard').classList.remove('hidden');document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));document.getElementById('tab-'+(state.tab||'dashboard')).classList.add('active');document.getElementById('activeProjectName').textContent=state.project.project||'Unnamed';PROJECT_FIELDS.forEach(k=>{const el=document.getElementById('p_'+k);if(el)el.value=state.project[k]||''});document.getElementById('kpiLogs').textContent=state.logs.length;document.getElementById('kpiGps').textContent=state.logs.filter(l=>l.gps).length;document.getElementById('kpiLocked').textContent=state.logs.filter(l=>l.status==='LOCKED').length;document.getElementById('kpiDraft').textContent=state.logs.filter(l=>l.status==='DRAFT').length;const latest=state.logs.slice(0,5);document.getElementById('latestLogs').innerHTML=latest.length?latest.map(logCard).join(''):'<p class="muted">No logs yet.</p>';const q=(document.getElementById('search')?.value||'').toLowerCase();const logs=state.logs.filter(l=>JSON.stringify(l).toLowerCase().includes(q));document.getElementById('logList').innerHTML=logs.length?logs.map(logCard).join(''):'<section class="card"><strong>No logs found.</strong></section>';}
+function logCard(l){return `<article class="log"><strong>${esc(l.type)} - ${esc(l.quickId||l.fields.repairId||l.fields.seam||l.fields.panel||l.id)}</strong> <span class="pill">${esc(l.status)}</span><p>${esc(l.time)}</p><p>Roll ${esc(l.fields.roll||l.project.activeRoll||'-')} • Panel ${esc(l.fields.panel||l.project.activePanel||'-')} • Seam ${esc(l.fields.seam||l.project.activeSeam||'-')}</p><p>${l.gps?`GPS ${Number(l.gps.lat).toFixed(6)}, ${Number(l.gps.lng).toFixed(6)} ±${l.gps.accuracyFt} ft`:'No GPS'}</p><p>${esc(l.notes||'')}</p><div class="row"><button onclick="lockLog('${l.id}')">Lock</button><button class="red" onclick="delLog('${l.id}')">Delete</button></div></article>`}
+init();
+</script>
+</body>
+</html>
