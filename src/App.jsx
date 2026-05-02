@@ -1,92 +1,113 @@
+import React, { useState, useEffect } from 'react';
+import AppShell from './components/AppShell';
+import ProjectHome from './components/ProjectHome';
+import Dashboard from './components/Dashboard';
+import TapCapture from './components/TapCapture';
+import VerifyEntry from './components/VerifyEntry';
+import Logs from './components/Logs';
+import AsBuiltMap from './components/AsBuiltMap';
+import Exports from './components/Exports';
+import { loadState, saveState, Storage } from './lib/storage';
 
-  const [activeProject, setActiveProject] = useState(Storage.getActiveProject());
-  const [projects, setProjects] = useState(Storage.getProjects());
-  const [records, setRecords] = useState([]);
-  const [constants, setConstants] = useState([]);
+export default function App() {
+  const [session, setSession] = useState(() => loadState() || { projects: [], activeProjectId: null, activeContext: {} });
+  const [view, setView] = useState('dashboard');
+  const [activeProject, setActiveProject] = useState(null);
+  const [logs, setLogs] = useState([]);
+  const [constants, setConstants] = useState({});
   const [points, setPoints] = useState([]);
-  const [view, setView] = useState("dashboard");
-  const [session, setSession] = useState(null);
 
   useEffect(() => {
-    Storage.saveProjects(projects);
-  }, [projects]);
+    saveState(session);
+  }, [session]);
 
   useEffect(() => {
-    if (activeProject) {
-      const state = Storage.loadProjectState(activeProject.id);
-      setRecords(state.logs || []);
-      setConstants(state.constants || []);
-      setPoints(state.points || []);
+    if (session.activeProjectId) {
+      const project = session.projects.find(p => p.id === session.activeProjectId);
+      setActiveProject(project);
+      if (project) {
+        const state = Storage.loadProjectState(project.id);
+        setLogs(state.logs || []);
+        setConstants(state.constants || {});
+        setPoints(state.points || []);
+      }
     }
-  }, [activeProject]);
+  }, [session.activeProjectId, session.projects]);
 
-  const saveLog = (type) => {
-    const newRecord = {
-      ...session,
-      id: crypto.randomUUID(),
-      type,
-      projectId: activeProject?.id || 'N/A',
-      projectName: activeProject?.name || 'N/A',
-      roll: activeProject?.roll || 'N/A',
-      panel: activeProject?.panel || 'N/A',
-      seam: activeProject?.seam || 'N/A',
-      qcTech: activeProject?.qcTech || 'N/A'
+  const saveLog = (logData) => {
+    const newLog = {
+      ...logData,
+      id: Date.now(),
+      timestamp: new Date().toISOString(),
+      constants: {
+        ...session.activeContext,
+        activeRoll: constants.activeRoll || session.activeContext?.activeRoll || "",
+        activePanel: constants.activePanel || session.activeContext?.activePanel || "",
+        activeSeam: constants.activeSeam || session.activeContext?.activeSeam || "",
+        qcTech: constants.qcTech || session.activeContext?.qcTech || ""
+      }
     };
-    const updatedLogs = [newRecord, ...records];
-    setRecords(updatedLogs);
-    if (activeProject) {
-      Storage.saveProjectState(activeProject.id, { 
-        constants, 
-        logs: updatedLogs, 
-        points 
-      });
-    }
-    setSession(null);
-    setView("logs");
+    const updatedLogs = [...logs, newLog];
+    setLogs(updatedLogs);
+    Storage.saveProjectState(activeProject.id, { constants, logs: updatedLogs, points });
+    setView('project-home');
   };
 
   const exportCSV = () => {
-    const csvContent = "data:text/csv;charset=utf-8," + 
-      "ID,Type,Project,Roll,Panel,Seam,QC Tech\n" +
-      records.map(r => `${r.id},${r.type},${r.projectName},${r.roll},${r.panel},${r.seam},${r.qcTech}`).join("\n");
-    const encodedUri = encodeURI(csvContent);
+    const headers = ['Timestamp', 'Roll', 'Panel', 'Seam', 'QC Tech', 'Type', 'Value'];
+    const rows = logs.map(log => [
+      log.timestamp,
+      log.constants.activeRoll,
+      log.constants.activePanel,
+      log.constants.activeSeam,
+      log.constants.qcTech,
+      log.type,
+      log.value
+    ]);
+    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `linersync_${activeProject?.name || 'export'}.csv`);
-    document.body.appendChild(link);
+    link.href = url;
+    link.download = `${activeProject?.name || 'project'}_export.csv`;
     link.click();
   };
 
   const renderView = () => {
-    if (!activeProject && view !== "dashboard") {
-      return <Dashboard projects={projects} setProjects={setProjects} setActiveProject={setActiveProject} />;
-    }
-
     switch (view) {
-      case "dashboard":
-        return <Dashboard projects={projects} setProjects={setProjects} setActiveProject={setActiveProject} />;
-      case "project":
-        return <ProjectHome project={activeProject} setView={setView} setSession={setSession} />;
-      case "capture":
-        return <TapCapture session={session} onSave={saveLog} onCancel={() => setView("project")} />;
-      case "verify":
-        return <VerifyEntry session={session} onSave={saveLog} onCancel={() => setView("project")} />;
-      case "logs":
-        return <Logs records={records} />;
-      case "exports":
+      case 'dashboard':
+        return (
+          <Dashboard 
+            projects={session.projects} 
+            onSelectProject={(id) => {
+              setSession({ ...session, activeProjectId: id });
+              setView('project-home');
+            }}
+            onCreateProject={(name) => {
+              const newProject = { id: Date.now().toString(), name };
+              setSession({ ...session, projects: [...session.projects, newProject] });
+            }}
+          />
+        );
+      case 'project-home':
+        return <ProjectHome project={activeProject} setView={setView} />;
+      case 'capture':
+        return <TapCapture session={session} onSave={saveLog} onCancel={() => setView('project-home')} />;
+      case 'verify':
+        return <VerifyEntry session={session} onSave={saveLog} onCancel={() => setView('project-home')} />;
+      case 'logs':
+        return <Logs logs={logs} />;
+      case 'map':
+        return <AsBuiltMap points={points} />;
+      case 'exports':
         return <Exports onExport={exportCSV} />;
       default:
-        return <Dashboard projects={projects} setProjects={setProjects} setActiveProject={setActiveProject} />;
+        return <Dashboard projects={session.projects} />;
     }
   };
 
   return (
-    <AppShell 
-      view={view} 
-      setView={setView} 
-      activeProject={activeProject}
-      setActiveProject={setActiveProject}
-    >
+    <AppShell view={view} setView={setView} activeProject={activeProject}>
       {renderView()}
     </AppShell>
   );
