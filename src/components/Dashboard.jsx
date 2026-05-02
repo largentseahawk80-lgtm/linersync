@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import ShadowMirrorTestPanel from "./ShadowMirrorTestPanel.jsx";
 
 export default function Dashboard({
   startCapture,
@@ -52,6 +53,8 @@ export default function Dashboard({
           </div>
         )}
       </div>
+
+      <ShadowMirrorTestPanel />
     </section>
   );
 }
