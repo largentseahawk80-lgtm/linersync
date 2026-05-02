@@ -1,1 +1,188 @@
-export const defaultState = { constants: { project: "", qcTech: "", activeRoll: "", activePanel: "", activeSeam: "" }, logs: [], points: [] }; const LEGACY_KEY = 'linersync_field_state_v1'; const PROJECTS_KEY = 'ls_projects'; const ACTIVE_PROJECT_KEY = 'ls_active_project_id'; const projectLogsKey = (projectId) => `ls_proj_${projectId}_logs`; const projectPointsKey = (projectId) => `ls_proj_${projectId}_points`; const projectConstantsKey = (projectId) => `ls_proj_${projectId}_constants`; function safeJsonParse(value, fallback) { try { if (!value) return fallback; const parsed = JSON.parse(value); return parsed ?? fallback; } catch { return fallback; } } function nowIso() { return new Date().toISOString(); } function makeProjectId(prefix = "PROJ") { return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`; } function normalizeProject(project) { return { id: project.id, name: project.name || "Untitled Project", client: project.client || "", site: project.site || "", area: project.area || "", material: project.material || "", qcTech: project.qcTech || "", status: project.status || "active", createdAt: project.createdAt || nowIso(), updatedAt: nowIso() }; } function getProjectsRaw() { return safeJsonParse(localStorage.getItem(PROJECTS_KEY), []); } function saveProjectsRaw(projects) { localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects.map(normalizeProject))); } export const Storage = { runMigration() { const legacyRaw = localStorage.getItem(LEGACY_KEY); const existingProjects = getProjectsRaw(); if (!legacyRaw || existingProjects.length > 0) return null; const legacyState = safeJsonParse(legacyRaw, null); if (!legacyState || typeof legacyState !== "object") return null; const legacyProjectId = makeProjectId("PROJ-LEGACY"); const constants = { ...defaultState.constants, ...(legacyState.constants || {}) }; const legacyProject = normalizeProject({ id: legacyProjectId, name: constants.project || "Imported Legacy Data", site: constants.project || "", qcTech: constants.qcTech || "", createdAt: nowIso() }); const migratedLogs = (legacyState.logs || []).map(log => ({ ...log, projectId: legacyProjectId })); const migratedPoints = (legacyState.points || []).map(pt => ({ ...pt, projectId: legacyProjectId })); saveProjectsRaw([legacyProject]); localStorage.setItem(projectLogsKey(legacyProjectId), JSON.stringify(migratedLogs)); localStorage.setItem(projectPointsKey(legacyProjectId), JSON.stringify(migratedPoints)); localStorage.setItem(projectConstantsKey(legacyProjectId), JSON.stringify(constants)); localStorage.setItem(ACTIVE_PROJECT_KEY, legacyProjectId); return legacyProject; }, getProjects() { return getProjectsRaw().map(normalizeProject); }, getActiveProjectId() { return localStorage.getItem(ACTIVE_PROJECT_KEY) || ""; }, setActiveProjectId(projectId) { if (!projectId) localStorage.removeItem(ACTIVE_PROJECT_KEY); else localStorage.setItem(ACTIVE_PROJECT_KEY, projectId); }, getActiveProject() { const activeId = Storage.getActiveProjectId(); if (!activeId) return null; return Storage.getProjects().find(p => p.id === activeId) || null; }, createProject(input) { const data = typeof input === "string" ? { name: input } : input || {}; const project = normalizeProject({ id: makeProjectId(), name: data.name || "Untitled Project", client: data.client || "", site: data.site || "", area: data.area || "", material: data.material || "", qcTech: data.qcTech || "" }); const projects = Storage.getProjects(); saveProjectsRaw([project, ...projects]); const constants = { ...defaultState.constants, project: project.name, qcTech: project.qcTech, material: project.material }; localStorage.setItem(projectLogsKey(project.id), JSON.stringify([])); localStorage.setItem(projectPointsKey(project.id), JSON.stringify([])); localStorage.setItem(projectConstantsKey(project.id), JSON.stringify(constants)); Storage.setActiveProjectId(project.id); return project; }, getProjectData(projectId, type) { const fallback = type === "constants" ? defaultState.constants : []; const keyMap = { logs: projectLogsKey, points: projectPointsKey, constants: projectConstantsKey }; const key = keyMap[type]?.(projectId); return key ? safeJsonParse(localStorage.getItem(key), fallback) : fallback; }, saveProjectData(projectId, type, data) { if (!projectId) return; const keyMap = { logs: projectLogsKey, points: projectPointsKey, constants: projectConstantsKey }; localStorage.setItem(keyMap[type](projectId), JSON.stringify(data)); }, loadProjectState(projectId) { return { constants: Storage.getProjectData(projectId, "constants"), logs: Storage.getProjectData(projectId, "logs"), points: Storage.getProjectData(projectId, "points") }; }, saveProjectState(projectId, state) { if (!projectId || !state) return; Storage.saveProjectData(projectId, "constants", state.constants); Storage.saveProjectData(projectId, "logs", state.logs); Storage.saveProjectData(projectId, "points", state.points); } }; export function loadState() { const activeProject = Storage.getActiveProject(); if (activeProject) return Storage.loadProjectState(activeProject.id); return safeJsonParse(localStorage.getItem(LEGACY_KEY), defaultState); } export function saveState(state) { const activeId = Storage.getActiveProjectId(); if (activeId) Storage.saveProjectState(activeId, state); else localStorage.setItem(LEGACY_KEY, JSON.stringify(state)); } export function clearKeysOnResetQuery() { if (!new URLSearchParams(window.location.search).has("reset")) return; const match = (k) => /linersync|qc|field|ls_proj|ls_projects/i.test(k); [localStorage, sessionStorage].forEach(s => { Object.keys(s).filter(match).forEach(k => s.removeItem(k)); }); window.history.replaceState({}, "", window.location.pathname); }
+export const defaultState = {
+  constants: { project: "", qcTech: "", activeRoll: "", activePanel: "", activeSeam: "" },
+  logs: [],
+  points: [],
+  auditStatus: "Project loaded"
+};
+
+const LEGACY_KEY = 'linersync_field_state_v1';
+const PROJECTS_KEY = 'ls_projects';
+const ACTIVE_PROJECT_KEY = 'ls_active_project_id';
+const projectLogsKey = (projectId) => `ls_proj_${projectId}_logs`;
+const projectPointsKey = (projectId) => `ls_proj_${projectId}_points`;
+const projectConstantsKey = (projectId) => `ls_proj_${projectId}_constants`;
+const projectAuditStatusKey = (projectId) => `ls_proj_${projectId}_audit_status`;
+
+function safeJsonParse(value, fallback) {
+  try {
+    if (!value) return fallback;
+    const parsed = JSON.parse(value);
+    return parsed ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function makeProjectId(prefix = "PROJ") {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function normalizeProject(project) {
+  return {
+    id: project.id,
+    name: project.name || "Untitled Project",
+    client: project.client || "",
+    site: project.site || "",
+    area: project.area || "",
+    material: project.material || "",
+    qcTech: project.qcTech || "",
+    status: project.status || "active",
+    createdAt: project.createdAt || nowIso(),
+    updatedAt: nowIso()
+  };
+}
+
+function getProjectsRaw() {
+  return safeJsonParse(localStorage.getItem(PROJECTS_KEY), []);
+}
+
+function saveProjectsRaw(projects) {
+  localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects.map(normalizeProject)));
+}
+
+export const Storage = {
+  runMigration() {
+    const legacyRaw = localStorage.getItem(LEGACY_KEY);
+    const existingProjects = getProjectsRaw();
+    if (!legacyRaw || existingProjects.length > 0) return null;
+
+    const legacyState = safeJsonParse(legacyRaw, null);
+    if (!legacyState || typeof legacyState !== "object") return null;
+
+    const legacyProjectId = makeProjectId("PROJ-LEGACY");
+    const constants = { ...defaultState.constants, ...(legacyState.constants || {}) };
+    const legacyProject = normalizeProject({
+      id: legacyProjectId,
+      name: constants.project || "Imported Legacy Data",
+      site: constants.project || "",
+      qcTech: constants.qcTech || "",
+      createdAt: nowIso()
+    });
+    const migratedLogs = (legacyState.logs || []).map(log => ({ ...log, projectId: legacyProjectId }));
+    const migratedPoints = (legacyState.points || []).map(pt => ({ ...pt, projectId: legacyProjectId }));
+
+    saveProjectsRaw([legacyProject]);
+    localStorage.setItem(projectLogsKey(legacyProjectId), JSON.stringify(migratedLogs));
+    localStorage.setItem(projectPointsKey(legacyProjectId), JSON.stringify(migratedPoints));
+    localStorage.setItem(projectConstantsKey(legacyProjectId), JSON.stringify(constants));
+    localStorage.setItem(projectAuditStatusKey(legacyProjectId), JSON.stringify(legacyState.auditStatus || defaultState.auditStatus));
+    localStorage.setItem(ACTIVE_PROJECT_KEY, legacyProjectId);
+    return legacyProject;
+  },
+
+  getProjects() {
+    return getProjectsRaw().map(normalizeProject);
+  },
+
+  getActiveProjectId() {
+    return localStorage.getItem(ACTIVE_PROJECT_KEY) || "";
+  },
+
+  setActiveProjectId(projectId) {
+    if (!projectId) localStorage.removeItem(ACTIVE_PROJECT_KEY);
+    else localStorage.setItem(ACTIVE_PROJECT_KEY, projectId);
+  },
+
+  getActiveProject() {
+    const activeId = Storage.getActiveProjectId();
+    if (!activeId) return null;
+    return Storage.getProjects().find(p => p.id === activeId) || null;
+  },
+
+  createProject(input) {
+    const data = typeof input === "string" ? { name: input } : input || {};
+    const project = normalizeProject({
+      id: makeProjectId(),
+      name: data.name || "Untitled Project",
+      client: data.client || "",
+      site: data.site || "",
+      area: data.area || "",
+      material: data.material || "",
+      qcTech: data.qcTech || ""
+    });
+    const projects = Storage.getProjects();
+    saveProjectsRaw([project, ...projects]);
+    const constants = { ...defaultState.constants, project: project.name, qcTech: project.qcTech, material: project.material };
+    localStorage.setItem(projectLogsKey(project.id), JSON.stringify([]));
+    localStorage.setItem(projectPointsKey(project.id), JSON.stringify([]));
+    localStorage.setItem(projectConstantsKey(project.id), JSON.stringify(constants));
+    localStorage.setItem(projectAuditStatusKey(project.id), JSON.stringify(defaultState.auditStatus));
+    Storage.setActiveProjectId(project.id);
+    return project;
+  },
+
+  getProjectData(projectId, type) {
+    const fallback = type === "constants" ? defaultState.constants : type === "auditStatus" ? defaultState.auditStatus : [];
+    const keyMap = {
+      logs: projectLogsKey,
+      points: projectPointsKey,
+      constants: projectConstantsKey,
+      auditStatus: projectAuditStatusKey
+    };
+    const key = keyMap[type]?.(projectId);
+    return key ? safeJsonParse(localStorage.getItem(key), fallback) : fallback;
+  },
+
+  saveProjectData(projectId, type, data) {
+    if (!projectId) return;
+    const keyMap = {
+      logs: projectLogsKey,
+      points: projectPointsKey,
+      constants: projectConstantsKey,
+      auditStatus: projectAuditStatusKey
+    };
+    localStorage.setItem(keyMap[type](projectId), JSON.stringify(data));
+  },
+
+  loadProjectState(projectId) {
+    return {
+      constants: Storage.getProjectData(projectId, "constants"),
+      logs: Storage.getProjectData(projectId, "logs"),
+      points: Storage.getProjectData(projectId, "points"),
+      auditStatus: Storage.getProjectData(projectId, "auditStatus")
+    };
+  },
+
+  saveProjectState(projectId, state) {
+    if (!projectId || !state) return;
+    Storage.saveProjectData(projectId, "constants", state.constants);
+    Storage.saveProjectData(projectId, "logs", state.logs);
+    Storage.saveProjectData(projectId, "points", state.points);
+    Storage.saveProjectData(projectId, "auditStatus", state.auditStatus || defaultState.auditStatus);
+  }
+};
+
+export function loadState() {
+  const activeProject = Storage.getActiveProject();
+  if (activeProject) return Storage.loadProjectState(activeProject.id);
+  return safeJsonParse(localStorage.getItem(LEGACY_KEY), defaultState);
+}
+
+export function saveState(state) {
+  const activeId = Storage.getActiveProjectId();
+  if (activeId) Storage.saveProjectState(activeId, state);
+  else localStorage.setItem(LEGACY_KEY, JSON.stringify(state));
+}
+
+export function clearKeysOnResetQuery() {
+  if (!new URLSearchParams(window.location.search).has("reset")) return;
+  const match = (k) => /linersync|qc|field|ls_proj|ls_projects/i.test(k);
+  [localStorage, sessionStorage].forEach(s => {
+    Object.keys(s).filter(match).forEach(k => s.removeItem(k));
+  });
+  window.history.replaceState({}, "", window.location.pathname);
+}
