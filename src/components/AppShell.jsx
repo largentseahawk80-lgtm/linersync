@@ -1,17 +1,1 @@
-import React from "react";
-
-export default function AppShell({ status, tab, setTab, children }) {
-  return (
-    <div className="app-shell" data-linersync-mounted="true">
-      <div className="button-row">
-        <button className={tab === "dashboard" ? "green" : ""} onClick={() => setTab("dashboard")}>Dashboard</button>
-        <button className={tab === "capture" ? "green" : ""} onClick={() => setTab("capture")}>Capture</button>
-        <button className={tab === "logs" ? "green" : ""} onClick={() => setTab("logs")}>Logs</button>
-        <button className={tab === "asbuilt" ? "green" : ""} onClick={() => setTab("asbuilt")}>As-Built</button>
-        <button className={tab === "exports" ? "green" : ""} onClick={() => setTab("exports")}>Exports</button>
-      </div>
-      <main className="main">{children}</main>
-      <div className="status-bar">{status}</div>
-    </div>
-  );
-}
+import React from "react"; export default function AppShell({ status, tab, setTab, children, activeProject, onExitProject }) { const tabs = [["dashboard", "Dashboard"], ["capture", "Capture"], ["logs", "Logs"], ["asbuilt", "As-Built"], ["exports", "Exports"]]; return ( <div className="app-shell" data-linersync-mounted="true"> <header className="shell-header"> <button className="project-back-btn" onClick={onExitProject}> ‹ Projects </button> <div className="shell-project"> <strong>{activeProject?.name}</strong> <span>{[activeProject?.site, activeProject?.area].filter(Boolean).join(" · ") || "Active Job"}</span> </div> </header> <nav className="tab-row"> {tabs.map(([k, l]) => ( <button key={k} className={tab === k ? " green active " : ""} onClick={() => setTab(k)}>{l} </button> ))} </nav> <main className="main">{children}</main> <div className="status-bar">{status}</div> </div> ); }
